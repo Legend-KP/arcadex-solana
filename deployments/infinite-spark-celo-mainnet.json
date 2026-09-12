@@ -1,0 +1,17 @@
+{
+  "contract": "InfiniteSpark",
+  "network": "celo-mainnet",
+  "chainId": 42220,
+  "address": "0x2a9f38b41035a900d5038D1972955011fb3278E7",
+  "fee": "100000",
+  "deployer": "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70",
+  "deployedAt": "2026-06-26T08:14:30.803Z",
+  "txHash": "0x7a9f03c05425a05f12025849574f27f9f78140e16b99a48d1abd187a173691c8",
+  "verified": true,
+  "verifiedAt": "2026-06-26T10:21:02Z",
+  "verification": {
+    "celoscan": "https://celoscan.io/address/0x2a9f38b41035a900d5038D1972955011fb3278E7#code",
+    "sourcify": "https://sourcify.dev/#/lookup/42220/0x2a9f38b41035a900d5038D1972955011fb3278E7",
+    "match": "exact_match"
+  }
+}

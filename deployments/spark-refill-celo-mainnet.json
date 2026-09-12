@@ -1,0 +1,17 @@
+{
+  "contract": "SparkRefill",
+  "network": "celo-mainnet",
+  "chainId": 42220,
+  "address": "0xD7EA6F0212b5b54a9fA4fc2d805CE63426A48B18",
+  "fee": "50000",
+  "deployer": "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70",
+  "deployedAt": "2026-06-26T10:42:31.824Z",
+  "txHash": "0xfbf7324d83242659bd4b8935a514a11edd166156e7e2dbcaa226f7e7a31389c9",
+  "verified": true,
+  "verifiedAt": "2026-06-26T10:44:44.645Z",
+  "verification": {
+    "celoscan": "https://celoscan.io/address/0xD7EA6F0212b5b54a9fA4fc2d805CE63426A48B18#code",
+    "sourcify": "https://sourcify.dev/#/lookup/42220/0xD7EA6F0212b5b54a9fA4fc2d805CE63426A48B18",
+    "match": "exact_match"
+  }
+}

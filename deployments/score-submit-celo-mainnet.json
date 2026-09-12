@@ -1,0 +1,16 @@
+{
+  "contract": "ScoreSubmit",
+  "network": "celo-mainnet",
+  "chainId": 42220,
+  "address": "0x7EE96ddeabB9a7A93cd4A66A32aC45622028555F",
+  "fee": "50000",
+  "deployer": "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70",
+  "deployedAt": "2026-07-09T10:49:48.436Z",
+  "txHash": "0x1ef9051ef7c51509cafa1d7b7d52cc01e096560f8d5a5ae1114a266eca4757ed",
+  "verified": true,
+  "verifiedAt": "2026-07-09T10:52:54.513Z",
+  "verification": {
+    "celoscan": "https://celoscan.io/address/0x7EE96ddeabB9a7A93cd4A66A32aC45622028555F#code",
+    "sourcify": "https://sourcify.dev/#/lookup/42220/0x7EE96ddeabB9a7A93cd4A66A32aC45622028555F"
+  }
+}

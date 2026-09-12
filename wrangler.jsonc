@@ -1,0 +1,85 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": ".open-next/worker.js",
+	"name": "arcadex-celo",
+	"compatibility_date": "2026-01-01",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"keep_vars": true,
+	"observability": {
+		"enabled": true
+	},
+	/**
+	 * Named environments — always deploy with --env preview|production.
+	 * Bindings (KV / D1 / services) are NOT inherited across envs in Wrangler;
+	 * each block must declare its own.
+	 *
+	 * Deploy:
+	 *   npm run deploy:preview
+	 *   npm run deploy:production
+	 *
+	 * PLAYER_DATA_BACKEND=d1 is only set on preview until you create a prod D1
+	 * database, run migrations, then flip production vars to "d1".
+	 */
+	"env": {
+		"preview": {
+			"name": "arcadex-celo-preview",
+			"vars": {
+				"PLAYER_DATA_BACKEND": "d1"
+			},
+			"services": [
+				{
+					"binding": "WORKER_SELF_REFERENCE",
+					"service": "arcadex-celo-preview"
+				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "RATE_LIMIT_KV",
+					"id": "afc93dfed6514875924b2511a39412cb"
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "arcadex-celo-preview",
+					"database_id": "81f8cd4f-6927-4561-861b-e5aa12eba7a6",
+					"migrations_dir": "migrations",
+					"preview_database_id": "arcadex-celo-preview-local"
+				}
+			]
+		},
+		"production": {
+			"name": "arcadex-celo",
+			"vars": {
+				"PLAYER_DATA_BACKEND": "d1"
+			},
+			"services": [
+				{
+					"binding": "WORKER_SELF_REFERENCE",
+					"service": "arcadex-celo"
+				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "RATE_LIMIT_KV",
+					"id": "55bfb54188784fac966da56f42c9fce6"
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "arcadex-celo-prod",
+					"database_id": "71aee228-0f98-412f-a5eb-6119c39cb5c3",
+					"migrations_dir": "migrations"
+				}
+			]
+		}
+	}
+}

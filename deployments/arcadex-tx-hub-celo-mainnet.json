@@ -1,0 +1,19 @@
+{
+  "contract": "ArcadeXTxHub",
+  "network": "celo-mainnet",
+  "chainId": 42220,
+  "address": "0x7D0fc71785B25d7878f83c4bf0E125DD89470FEc",
+  "owner": "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70",
+  "deployer": "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70",
+  "deployedAt": "2026-08-05T15:59:27.006Z",
+  "txHash": "0x23bea549a481bfe7669c1dd0e5957d8f22ce45303b07aba48ee9ca1f905aceea",
+  "notes": "General MiniPay hub: signIn(purpose) free; payWithUSDT/USDC(purpose) after setFee.",
+  "verified": true,
+  "verifiedAt": "2026-08-05T15:59:46.218Z",
+  "verification": {
+    "celoscan": "https://celoscan.io/address/0x7D0fc71785B25d7878f83c4bf0E125DD89470FEc#code",
+    "sourcify": "https://sourcify.dev/#/lookup/42220/0x7D0fc71785B25d7878f83c4bf0E125DD89470FEc",
+    "blockscout": "https://celo.blockscout.com/address/0x7D0fc71785B25d7878f83c4bf0E125DD89470FEc?tab=contract",
+    "match": "exact_match"
+  }
+}

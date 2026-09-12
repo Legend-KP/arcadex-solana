@@ -1,0 +1,25 @@
+{
+  "name": "infinite-spark-deploy",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy-spark-refill.cjs --network celo",
+    "deploy:score-submit": "hardhat run scripts/deploy-score-submit.cjs --network celo",
+    "deploy:arcadex-rewards": "hardhat run scripts/deploy-arcadex-rewards.cjs --network celo",
+    "deploy:arcadex-tx-hub": "hardhat run scripts/deploy-arcadex-tx-hub.cjs --network celo",
+    "verify": "node scripts/verify-spark-refill.cjs",
+    "verify:score-submit": "node scripts/verify-score-submit.cjs",
+    "verify:arcadex-rewards": "node scripts/verify-arcadex-rewards.cjs",
+    "verify:arcadex-tx-hub": "node scripts/verify-arcadex-tx-hub.cjs"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "@types/node": "^22.15.0",
+    "dotenv": "^16.6.1",
+    "hardhat": "^2.22.0",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.0.2"
+  }
+}

@@ -1,0 +1,11 @@
+/_next/static/*
+  Cache-Control: public,max-age=31536000,immutable
+
+/tutorials/*
+  Cache-Control: public,max-age=31536000,immutable
+
+/onboarding/*
+  Cache-Control: public,max-age=31536000,immutable
+
+/sounds/*
+  Cache-Control: public,max-age=31536000,immutable

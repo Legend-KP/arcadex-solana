@@ -1,0 +1,38 @@
+{
+  "contract": "ArcadeXRewards",
+  "network": "celo-mainnet",
+  "chainId": 42220,
+  "address": "0xc5BE4773D5B4a8e3C6f3E7a4C5f7cfBC38986ccF",
+  "campaignId": 1,
+  "campaignType": "STREAK",
+  "requiredDays": 7,
+  "minIntervalSeconds": 86400,
+  "rewardMode": 0,
+  "rewardMeta": "0x0ab4843ee23ccd969c6d889afda5daeb2a0d59d52a8da8a2b6a3006a8906de71",
+  "resetAfterMilestone": true,
+  "requireEligibility": false,
+  "maxSinglePayout": 0,
+  "startTime": 1784835332,
+  "endTime": 1816371332,
+  "eligibilitySigner": "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70",
+  "spinResultSigner": "0x0000000000000000000000000000000000000000",
+  "constructorArgs": [
+    "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70"
+  ],
+  "deployer": "0x11015f39Ac7389201aEc778Be8e3D84f2aF44A70",
+  "deployedAt": "2026-07-23T19:35:38.127Z",
+  "txHash": "0x29c50a08895c0c9702393faf370049f899a170b1407ed8cd8c5f67dbaa9a540f",
+  "setCampaignTxHash": "0xca85069b2b3d7a49496721c01f5ed7ef194008101cb73157dc7d1fce87deea76",
+  "verified": true,
+  "verifiedAt": "2026-07-23T19:35:55.421Z",
+  "verification": {
+    "celoscan": "https://celoscan.io/address/0xc5BE4773D5B4a8e3C6f3E7a4C5f7cfBC38986ccF#code",
+    "sourcify": "https://sourcify.dev/#/lookup/42220/0xc5BE4773D5B4a8e3C6f3E7a4C5f7cfBC38986ccF",
+    "blockscout": "https://celo.blockscout.com/address/0xc5BE4773D5B4a8e3C6f3E7a4C5f7cfBC38986ccF?tab=contract"
+  },
+  "verifiedOn": {
+    "sourcify": true,
+    "blockscout": true,
+    "celoscan": false
+  }
+}

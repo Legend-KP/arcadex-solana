@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Catalog reads and writes go through the Worker (Admin SDK).
+    // Clients must use GET /api/games — unpublished games stay hidden.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
