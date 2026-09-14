@@ -5,7 +5,7 @@
  *   EXPO_PUBLIC_ARCADEX_URL=https://your-new-domain.example
  * or edit DEFAULT_ARCADEX_WEB_URL below, then rebuild the preview APK.
  */
-export const DEFAULT_ARCADEX_WEB_URL = "https://arcadex.trenchverse.com";
+export const DEFAULT_ARCADEX_WEB_URL = "https://arcadexseeker.trenchverse.com";
 
 export function getArcadexWebUrl() {
   const fromEnv =
