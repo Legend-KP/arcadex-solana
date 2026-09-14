@@ -26,7 +26,7 @@ import {
 export default function GamePageClient() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { walletAddress } = usePlayerProfile();
+  const { walletAddress, isGuest, playerName } = usePlayerProfile();
   const { sparks, spendForGame } = useSparks();
   const [game, setGame] = useState<Game | null>(null);
   const [menuImageSrc, setMenuImageSrc] = useState<string | null>(null);
@@ -119,8 +119,13 @@ export default function GamePageClient() {
   const handleStart = useCallback(async () => {
     setSparkError("");
 
-    if (!walletAddress) {
-      setSparkError("Connect your wallet in MiniPay to play.");
+    if (!walletAddress && !isGuest) {
+      setSparkError("Wallet coming soon.");
+      return;
+    }
+
+    if (isGuest && !playerName.trim()) {
+      setSparkError("Choose a player name to play.");
       return;
     }
 
@@ -131,7 +136,8 @@ export default function GamePageClient() {
 
     setStarting(true);
     try {
-      if (isArcadeXTxHubConfigured() && game?.id) {
+      // MiniPay gas sign-in only when a real wallet is connected.
+      if (!isGuest && isArcadeXTxHubConfigured() && game?.id) {
         await signInOnChain(playPurpose(game.id));
       }
       await spendForGame();
@@ -146,6 +152,8 @@ export default function GamePageClient() {
     }
   }, [
     walletAddress,
+    isGuest,
+    playerName,
     sparks.hasInfinite,
     sparks.available,
     spendForGame,

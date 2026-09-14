@@ -37,9 +37,10 @@ import {
 import {
   clearCachedPlayerName,
   clearInvalidCachedWallet,
-  clearStaleGuestId,
   getCachedPlayerName,
   getCachedWallet,
+  getOrCreateGuestId,
+  isGuestId,
   setCachedPlayerName,
   setCachedWallet,
 } from "@/lib/player-id";
@@ -71,6 +72,8 @@ interface PlayerProfileContextValue {
   profile: PlayerProfile | null;
   playerName: string;
   walletAddress: string;
+  /** True when playing without MiniPay — local guest UUID + name. */
+  isGuest: boolean;
   isReady: boolean;
   streakStatus: StreakStatus | null;
   updateWalletAddress: (walletAddress: string) => Promise<void>;
@@ -102,6 +105,16 @@ function syncNameCompletion(profile: PlayerProfile | null): boolean {
   const complete = hasPlayerName(profile);
   if (!complete) clearCachedPlayerName();
   return complete;
+}
+
+function buildGuestProfile(guestId: string, name: string): PlayerProfile {
+  const now = Date.now();
+  return {
+    id: guestId,
+    name,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export default function PlayerProfileProvider({
@@ -206,9 +219,30 @@ export default function PlayerProfileProvider({
       return resolveWalletOnAppOpen();
     }
 
+    function enterGuestMode() {
+      const guestId = getOrCreateGuestId();
+      setPlayerId(guestId);
+      setWalletAddress("");
+
+      const cachedName = getCachedPlayerName()?.trim();
+      if (cachedName) {
+        const guestProfile = buildGuestProfile(guestId, cachedName);
+        setProfile(guestProfile);
+        nameCompleteRef.current = true;
+        setShowModal(false);
+        setShowCheckIn(false);
+        setError("");
+      } else {
+        setProfile(null);
+        nameCompleteRef.current = false;
+        setShowModal(true);
+        setShowCheckIn(false);
+      }
+      setIsReady(true);
+    }
+
     async function loadProfile() {
       clearInvalidCachedWallet();
-      clearStaleGuestId();
       setError("");
 
       const cached = getCachedWallet();
@@ -222,9 +256,8 @@ export default function PlayerProfileProvider({
       if (cancelled) return;
 
       if (!wallet) {
-        setShowModal(true);
-        nameCompleteRef.current = false;
-        setIsReady(true);
+        // Browser / Solana Mobile shell: play as guest — no MiniPay hard gate.
+        enterGuestMode();
         return;
       }
 
@@ -384,20 +417,33 @@ export default function PlayerProfileProvider({
       setError("");
 
       try {
-        let wallet =
+        let wallet: string | null =
           walletAddress ||
           getCachedWallet() ||
           profile?.walletAddress ||
           readWalletImmediately();
 
+        // Guest path: name stays on-device until MiniPay/wallet is available.
         if (!wallet) {
-          wallet = await resolveWalletForSave();
+          try {
+            wallet = await resolveWalletForSave();
+          } catch {
+            wallet = null;
+          }
         }
 
-        if (!isWalletAddress(wallet)) {
-          throw new Error(
-            "Could not connect your wallet. Open ArcadeX in MiniPay and try again."
-          );
+        if (!wallet || !isWalletAddress(wallet)) {
+          const guestId = getOrCreateGuestId();
+          const trimmed = name.trim();
+          setCachedPlayerName(trimmed);
+          const guestProfile = buildGuestProfile(guestId, trimmed);
+          setPlayerId(guestId);
+          setWalletAddress("");
+          setProfile(guestProfile);
+          nameCompleteRef.current = true;
+          setShowModal(false);
+          setShowCheckIn(false);
+          return;
         }
 
         wallet = normalizeWalletAddress(wallet);
@@ -465,12 +511,16 @@ export default function PlayerProfileProvider({
   const defaultName =
     profile?.name?.trim() || getCachedPlayerName()?.trim() || "";
 
+  const isGuest =
+    Boolean(playerId) && !walletAddress && isGuestId(playerId);
+
   const value = useMemo(
     () => ({
       playerId,
       profile,
       playerName: profile?.name ?? "",
       walletAddress,
+      isGuest,
       isReady,
       streakStatus,
       updateWalletAddress,
@@ -481,6 +531,7 @@ export default function PlayerProfileProvider({
       playerId,
       profile,
       walletAddress,
+      isGuest,
       isReady,
       streakStatus,
       updateWalletAddress,

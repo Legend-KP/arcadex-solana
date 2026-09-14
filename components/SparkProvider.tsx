@@ -10,14 +10,27 @@ import {
   useState,
 } from "react";
 import { fetchHomeShell } from "@/lib/home-client";
-import { fetchSparkData, localSparkData, spendSpark, activateInfiniteSpark, activateSparkRefill } from "@/lib/spark-client";
-import { computeSparkSnapshot, normalizeSparkState, coerceSparkState } from "@/lib/spark";
+import {
+  fetchSparkData,
+  localSparkData,
+  spendSpark,
+  activateInfiniteSpark,
+  activateSparkRefill,
+} from "@/lib/spark-client";
+import {
+  applySparkSpend,
+  computeSparkSnapshot,
+  normalizeSparkState,
+  coerceSparkState,
+} from "@/lib/spark";
 import { purchaseInfiniteSparkOnChain } from "@/lib/infinite-spark-purchase";
 import { purchaseSparkRefillOnChain } from "@/lib/spark-refill-purchase";
+import { getGuestSparksKey } from "@/lib/player-id";
 import { SparkSnapshot, StoredSparkState } from "@/types";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 
 const ACTIVATE_RETRY_DELAYS_MS = [0, 800, 2000, 4000];
+const WALLET_COMING_SOON = "Wallet coming soon.";
 
 async function activateWithRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
@@ -34,6 +47,24 @@ async function activateWithRetry<T>(fn: () => Promise<T>): Promise<T> {
   throw lastError instanceof Error
     ? lastError
     : new Error("Could not credit payment. Please try again.");
+}
+
+function readGuestSparkState(guestId: string): StoredSparkState {
+  if (typeof window === "undefined" || !guestId) {
+    return localSparkData().state;
+  }
+  try {
+    const raw = localStorage.getItem(getGuestSparksKey(guestId));
+    if (!raw) return localSparkData().state;
+    return coerceSparkState(JSON.parse(raw));
+  } catch {
+    return localSparkData().state;
+  }
+}
+
+function writeGuestSparkState(guestId: string, state: StoredSparkState): void {
+  if (typeof window === "undefined" || !guestId) return;
+  localStorage.setItem(getGuestSparksKey(guestId), JSON.stringify(state));
 }
 
 interface SparkContextValue {
@@ -60,19 +91,20 @@ export default function SparkProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { walletAddress, isReady } = usePlayerProfile();
+  const { walletAddress, playerId, isGuest, isReady } = usePlayerProfile();
   const [state, setState] = useState<StoredSparkState>(
     () => localSparkData().state
   );
   const [loading, setLoading] = useState(true);
   const sparkWalletRef = useRef("");
 
-  const sparks = useMemo(
-    () => computeSparkSnapshot(state),
-    [state]
-  );
+  const sparks = useMemo(() => computeSparkSnapshot(state), [state]);
 
   const refresh = useCallback(async () => {
+    if (isGuest && playerId) {
+      setState(normalizeSparkState(readGuestSparkState(playerId)));
+      return;
+    }
     if (!walletAddress) {
       setState(localSparkData().state);
       return;
@@ -80,21 +112,37 @@ export default function SparkProvider({
 
     const data = await fetchSparkData(walletAddress);
     setState(coerceSparkState(data.state));
-  }, [walletAddress]);
+  }, [walletAddress, isGuest, playerId]);
 
   const spendForGame = useCallback(async (): Promise<boolean> => {
+    if (isGuest && playerId) {
+      const current = normalizeSparkState(readGuestSparkState(playerId));
+      if (computeSparkSnapshot(current).hasInfinite) {
+        setState(current);
+        writeGuestSparkState(playerId, current);
+        return false;
+      }
+      const next = applySparkSpend(current);
+      if (!next) {
+        throw new Error("No Sparks left. Wait for a refill or try again later.");
+      }
+      setState(next);
+      writeGuestSparkState(playerId, next);
+      return true;
+    }
+
     if (!walletAddress) {
-      throw new Error("Connect your wallet in MiniPay to play.");
+      throw new Error(WALLET_COMING_SOON);
     }
 
     const result = await spendSpark(walletAddress);
     setState(coerceSparkState(result.state));
     return result.spent;
-  }, [walletAddress]);
+  }, [walletAddress, isGuest, playerId]);
 
   const purchaseInfiniteSpark = useCallback(async (): Promise<void> => {
-    if (!walletAddress) {
-      throw new Error("Connect your wallet in MiniPay to purchase Infinite Spark.");
+    if (isGuest || !walletAddress) {
+      throw new Error(WALLET_COMING_SOON);
     }
 
     const { txHash } = await purchaseInfiniteSparkOnChain();
@@ -102,11 +150,11 @@ export default function SparkProvider({
       activateInfiniteSpark(walletAddress, txHash)
     );
     setState(coerceSparkState(result.state));
-  }, [walletAddress]);
+  }, [walletAddress, isGuest]);
 
   const purchaseSparkRefill = useCallback(async (): Promise<void> => {
-    if (!walletAddress) {
-      throw new Error("Connect your wallet in MiniPay to purchase Spark Refill.");
+    if (isGuest || !walletAddress) {
+      throw new Error(WALLET_COMING_SOON);
     }
 
     const { txHash } = await purchaseSparkRefillOnChain();
@@ -114,9 +162,16 @@ export default function SparkProvider({
       activateSparkRefill(walletAddress, txHash)
     );
     setState(coerceSparkState(result.state));
-  }, [walletAddress]);
+  }, [walletAddress, isGuest]);
 
   useEffect(() => {
+    if (isGuest && playerId) {
+      sparkWalletRef.current = playerId;
+      setState(normalizeSparkState(readGuestSparkState(playerId)));
+      setLoading(false);
+      return;
+    }
+
     if (!walletAddress) {
       sparkWalletRef.current = "";
       setState(localSparkData().state);
@@ -140,7 +195,6 @@ export default function SparkProvider({
           setLoading(false);
           return;
         }
-        // No session yet — wait for profile/streak to finish, then retry.
         if (!isReady) return;
 
         const data = await fetchSparkData(walletAddress);
@@ -156,17 +210,21 @@ export default function SparkProvider({
     return () => {
       cancelled = true;
     };
-  }, [walletAddress, isReady]);
+  }, [walletAddress, isGuest, playerId, isReady]);
 
   useEffect(() => {
-    if (!walletAddress) return;
+    if (!walletAddress && !(isGuest && playerId)) return;
 
     const id = window.setInterval(() => {
-      setState((prev) => normalizeSparkState(prev));
+      setState((prev) => {
+        const next = normalizeSparkState(prev);
+        if (isGuest && playerId) writeGuestSparkState(playerId, next);
+        return next;
+      });
     }, 1000);
 
     return () => window.clearInterval(id);
-  }, [walletAddress]);
+  }, [walletAddress, isGuest, playerId]);
 
   const value = useMemo(
     () => ({
@@ -177,7 +235,14 @@ export default function SparkProvider({
       purchaseInfiniteSpark,
       purchaseSparkRefill,
     }),
-    [sparks, loading, refresh, spendForGame, purchaseInfiniteSpark, purchaseSparkRefill]
+    [
+      sparks,
+      loading,
+      refresh,
+      spendForGame,
+      purchaseInfiniteSpark,
+      purchaseSparkRefill,
+    ]
   );
 
   return (
