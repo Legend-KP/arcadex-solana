@@ -1,5 +1,15 @@
 import { SparkSnapshot, StoredSparkState } from "@/types";
-import { defaultSparkState, computeSparkSnapshot } from "@/lib/spark";
+import {
+  applySparkSpend,
+  coerceSparkState,
+  computeSparkSnapshot,
+  defaultSparkState,
+  normalizeSparkState,
+} from "@/lib/spark";
+import {
+  readGuestSparkStateJson,
+  writeGuestSparkStateJson,
+} from "@/lib/player-id";
 import {
   refreshSessionFromCheckIn,
   SessionRefreshError,
@@ -35,6 +45,39 @@ export function localSparkData(): SparkApiResponse {
 
 export interface SparkSpendResponse extends SparkApiResponse {
   spent: boolean;
+}
+
+/** Guest Sparks: full bar by default, persisted in localStorage (no API). */
+export function loadGuestSparkData(): SparkApiResponse {
+  const raw = readGuestSparkStateJson();
+  if (!raw) {
+    const fresh = localSparkData();
+    writeGuestSparkStateJson(JSON.stringify(fresh.state));
+    return fresh;
+  }
+  try {
+    const state = normalizeSparkState(coerceSparkState(JSON.parse(raw)));
+    writeGuestSparkStateJson(JSON.stringify(state));
+    return { state, sparks: computeSparkSnapshot(state) };
+  } catch {
+    const fresh = localSparkData();
+    writeGuestSparkStateJson(JSON.stringify(fresh.state));
+    return fresh;
+  }
+}
+
+export function spendGuestSpark(): SparkSpendResponse {
+  const current = loadGuestSparkData().state;
+  const next = applySparkSpend(current);
+  if (!next) {
+    throw new Error("No Sparks available. Wait for a refill or try again later.");
+  }
+  writeGuestSparkStateJson(JSON.stringify(next));
+  return {
+    state: next,
+    sparks: computeSparkSnapshot(next),
+    spent: true,
+  };
 }
 
 async function spendSparkOnce(

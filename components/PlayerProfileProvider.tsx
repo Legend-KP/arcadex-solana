@@ -37,10 +37,10 @@ import {
 import {
   clearCachedPlayerName,
   clearInvalidCachedWallet,
+  clearStaleGuestId,
   getCachedPlayerName,
   getCachedWallet,
   getOrCreateGuestId,
-  isGuestId,
   setCachedPlayerName,
   setCachedWallet,
 } from "@/lib/player-id";
@@ -72,7 +72,7 @@ interface PlayerProfileContextValue {
   profile: PlayerProfile | null;
   playerName: string;
   walletAddress: string;
-  /** True when playing without MiniPay — local guest UUID + name. */
+  /** True when playing without MiniPay / wallet (local guest UUID). */
   isGuest: boolean;
   isReady: boolean;
   streakStatus: StreakStatus | null;
@@ -105,16 +105,6 @@ function syncNameCompletion(profile: PlayerProfile | null): boolean {
   const complete = hasPlayerName(profile);
   if (!complete) clearCachedPlayerName();
   return complete;
-}
-
-function buildGuestProfile(guestId: string, name: string): PlayerProfile {
-  const now = Date.now();
-  return {
-    id: guestId,
-    name,
-    createdAt: now,
-    updatedAt: now,
-  };
 }
 
 export default function PlayerProfileProvider({
@@ -219,30 +209,9 @@ export default function PlayerProfileProvider({
       return resolveWalletOnAppOpen();
     }
 
-    function enterGuestMode() {
-      const guestId = getOrCreateGuestId();
-      setPlayerId(guestId);
-      setWalletAddress("");
-
-      const cachedName = getCachedPlayerName()?.trim();
-      if (cachedName) {
-        const guestProfile = buildGuestProfile(guestId, cachedName);
-        setProfile(guestProfile);
-        nameCompleteRef.current = true;
-        setShowModal(false);
-        setShowCheckIn(false);
-        setError("");
-      } else {
-        setProfile(null);
-        nameCompleteRef.current = false;
-        setShowModal(true);
-        setShowCheckIn(false);
-      }
-      setIsReady(true);
-    }
-
     async function loadProfile() {
       clearInvalidCachedWallet();
+      clearStaleGuestId();
       setError("");
 
       const cached = getCachedWallet();
@@ -256,8 +225,30 @@ export default function PlayerProfileProvider({
       if (cancelled) return;
 
       if (!wallet) {
-        // Browser / Solana Mobile shell: play as guest — no MiniPay hard gate.
-        enterGuestMode();
+        // Guest path: local UUID + name, no MiniPay hard-block, no daily check-in.
+        const guestId = getOrCreateGuestId();
+        const cachedName = getCachedPlayerName()?.trim() ?? "";
+        setWalletAddress("");
+        setPlayerId(guestId);
+        setStreakStatus(null);
+        setShowCheckIn(false);
+
+        if (cachedName) {
+          const guestProfile: PlayerProfile = {
+            id: guestId,
+            name: cachedName,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          setProfile(guestProfile);
+          nameCompleteRef.current = true;
+          setShowModal(false);
+        } else {
+          setProfile(null);
+          nameCompleteRef.current = false;
+          setShowModal(true);
+        }
+        setIsReady(true);
         return;
       }
 
@@ -417,13 +408,13 @@ export default function PlayerProfileProvider({
       setError("");
 
       try {
-        let wallet: string | null =
+        let wallet =
           walletAddress ||
           getCachedWallet() ||
           profile?.walletAddress ||
           readWalletImmediately();
 
-        // Guest path: name stays on-device until MiniPay/wallet is available.
+        // Soft resolve: if MiniPay is present, use it; otherwise stay guest.
         if (!wallet) {
           try {
             wallet = await resolveWalletForSave();
@@ -432,21 +423,25 @@ export default function PlayerProfileProvider({
           }
         }
 
-        if (!wallet || !isWalletAddress(wallet)) {
+        if (!isWalletAddress(wallet)) {
           const guestId = getOrCreateGuestId();
           const trimmed = name.trim();
           setCachedPlayerName(trimmed);
-          const guestProfile = buildGuestProfile(guestId, trimmed);
+          const guestProfile: PlayerProfile = {
+            id: guestId,
+            name: trimmed,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
           setPlayerId(guestId);
           setWalletAddress("");
           setProfile(guestProfile);
           nameCompleteRef.current = true;
           setShowModal(false);
-          setShowCheckIn(false);
           return;
         }
 
-        wallet = normalizeWalletAddress(wallet);
+        wallet = normalizeWalletAddress(wallet as string);
 
         if (!hasValidWalletSession(wallet)) {
           if (isArcadeXRewardsConfigured()) {
@@ -511,8 +506,7 @@ export default function PlayerProfileProvider({
   const defaultName =
     profile?.name?.trim() || getCachedPlayerName()?.trim() || "";
 
-  const isGuest =
-    Boolean(playerId) && !walletAddress && isGuestId(playerId);
+  const isGuest = Boolean(playerId) && !walletAddress;
 
   const value = useMemo(
     () => ({
@@ -543,8 +537,12 @@ export default function PlayerProfileProvider({
   // New-user order: onboarding → streak broken (if needed) → daily streak → name modal
   const onboardingVisible = showOnboarding === true;
   const onboardingResolved = showOnboarding !== null;
+  // Guests never see daily check-in / shuffle (MiniPay-only).
   const checkInVisible =
-    onboardingResolved && !onboardingVisible && showCheckIn;
+    onboardingResolved &&
+    !onboardingVisible &&
+    showCheckIn &&
+    Boolean(walletAddress);
 
   const previousBrokenDays = streakStatus?.currentDay ?? 0;
   const lastBrokenCheckInAt = streakStatus?.lastCheckInAt ?? 0;

@@ -6,19 +6,7 @@ import {
 const PLAYER_ID_KEY = "arcadex_player_id";
 const PLAYER_NAME_KEY = "arcadex_player_name";
 const WALLET_KEY = "arcadex_wallet_address";
-const GUEST_SPARKS_KEY = "arcadex_guest_sparks";
-
-function createGuestUuid(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `guest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-export function isGuestId(id: string | null | undefined): boolean {
-  if (!id) return false;
-  return !isWalletAddress(id);
-}
+const GUEST_SPARK_KEY = "arcadex_guest_sparks";
 
 export function clearInvalidCachedWallet(): void {
   if (typeof window === "undefined") return;
@@ -29,28 +17,37 @@ export function clearInvalidCachedWallet(): void {
 }
 
 /**
- * Guest UUIDs are valid for Solana Mobile / browser play without MiniPay.
- * Do not wipe them on boot — only clear when a real wallet takes over.
+ * Legacy cleanup kept for call sites. Guest UUIDs are valid again for
+ * Solana Mobile / non-MiniPay play — do not wipe non-wallet player ids.
  */
 export function clearStaleGuestId(): void {
-  // no-op (kept for call-site compatibility)
+  // no-op: guest ids are intentional for offline / APK WebView play
 }
 
-export function getGuestId(): string | null {
-  if (typeof window === "undefined") return null;
-  const id = localStorage.getItem(PLAYER_ID_KEY);
-  return isGuestId(id) ? id : null;
+function createGuestUuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `guest-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
 }
 
-/** Stable local guest id for first-time users outside MiniPay. */
+/** Local guest id for first-time / non-MiniPay users. */
 export function getOrCreateGuestId(): string {
   if (typeof window === "undefined") return "";
-  const existing = getGuestId();
-  if (existing) return existing;
-
+  const existing = localStorage.getItem(PLAYER_ID_KEY);
+  if (existing && !isWalletAddress(existing)) {
+    return existing;
+  }
   const id = createGuestUuid();
   localStorage.setItem(PLAYER_ID_KEY, id);
   return id;
+}
+
+export function getCachedPlayerId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(PLAYER_ID_KEY);
 }
 
 export function getCachedWallet(): string | null {
@@ -64,7 +61,6 @@ export function setCachedWallet(address: string): void {
   if (typeof window === "undefined") return;
   const normalized = normalizeWalletAddress(address);
   localStorage.setItem(WALLET_KEY, normalized);
-  // Prefer wallet as the active player id when MiniPay connects.
   localStorage.setItem(PLAYER_ID_KEY, normalized);
 }
 
@@ -83,6 +79,12 @@ export function clearCachedPlayerName(): void {
   localStorage.removeItem(PLAYER_NAME_KEY);
 }
 
-export function getGuestSparksKey(guestId: string): string {
-  return `${GUEST_SPARKS_KEY}:${guestId}`;
+export function readGuestSparkStateJson(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(GUEST_SPARK_KEY);
+}
+
+export function writeGuestSparkStateJson(json: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(GUEST_SPARK_KEY, json);
 }

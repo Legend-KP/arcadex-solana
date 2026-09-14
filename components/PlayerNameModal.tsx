@@ -50,7 +50,8 @@ export default function PlayerNameModal({
           Choose your player name
         </h2>
         <p className="player-modal-hint">
-          This name appears while you play. Wallet features unlock later.
+          This name is saved on this device. Pick something fun — you can keep
+          playing without a wallet.
         </p>
 
         <form onSubmit={handleSubmit} className="player-modal-form">

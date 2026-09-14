@@ -9,8 +9,10 @@ import { playSuccessSfx, playTouchSfx, preloadSfx } from "@/lib/sfx";
 import { formatSparkCountdown } from "@/lib/spark";
 
 export default function SparkBatteryBar() {
-  const { sparks, loading, purchaseInfiniteSpark, purchaseSparkRefill } = useSparks();
+  const { sparks, loading, purchaseInfiniteSpark, purchaseSparkRefill } =
+    useSparks();
   const { walletAddress, isGuest } = usePlayerProfile();
+  const walletReady = Boolean(walletAddress) && !isGuest;
   const [open, setOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [refilling, setRefilling] = useState(false);
@@ -20,8 +22,6 @@ export default function SparkBatteryBar() {
     title: string;
     body: string;
   } | null>(null);
-
-  const walletReady = Boolean(walletAddress) && !isGuest;
 
   useEffect(() => {
     if (sessionStorage.getItem("openSparkPanel") === "1") {
@@ -62,10 +62,6 @@ export default function SparkBatteryBar() {
   const isFull = sparks.available >= sparks.max;
 
   async function handlePurchaseInfiniteSpark() {
-    if (!walletReady) {
-      setPurchaseError("Wallet coming soon.");
-      return;
-    }
     setPurchaseError("");
     setPurchasing(true);
     try {
@@ -83,10 +79,6 @@ export default function SparkBatteryBar() {
   }
 
   async function handlePurchaseSparkRefill() {
-    if (!walletReady) {
-      setRefillError("Wallet coming soon.");
-      return;
-    }
     setRefillError("");
     setRefilling(true);
     try {
@@ -225,6 +217,13 @@ export default function SparkBatteryBar() {
             <span aria-hidden>✦</span>
           </h3>
 
+          {!walletReady && (
+            <p className="spark-panel__shop-note" role="status">
+              Wallet coming soon — purchases unlock when Solana wallet connect
+              ships.
+            </p>
+          )}
+
           <div className="spark-shop-card">
             <div className="spark-shop-card__main">
               <span className="spark-shop-card__icon spark-shop-card__icon--refill" aria-hidden>
@@ -239,17 +238,26 @@ export default function SparkBatteryBar() {
               <button
                 type="button"
                 className="spark-shop-card__price"
-                disabled={refilling || loading || !walletReady || sparks.available >= sparks.max}
+                disabled={
+                  !walletReady ||
+                  refilling ||
+                  loading ||
+                  sparks.available >= sparks.max
+                }
                 onClick={() => {
                   playTouchSfx();
+                  if (!walletReady) {
+                    setRefillError("Wallet coming soon");
+                    return;
+                  }
                   void handlePurchaseSparkRefill();
                 }}
               >
-                {refilling ? "…" : walletReady ? "$0.05" : "Soon"}
+                {!walletReady ? "Soon" : refilling ? "…" : "$0.05"}
               </button>
             </div>
             <span className="spark-shop-card__tag spark-shop-card__tag--gold">
-              {walletReady ? "Best for quick top-up" : "Wallet coming soon"}
+              Best for quick top-up
             </span>
             {refillError && (
               <p className="spark-panel__purchase-error" role="alert">
@@ -272,17 +280,21 @@ export default function SparkBatteryBar() {
               <button
                 type="button"
                 className="spark-shop-card__price"
-                disabled={purchasing || loading || !walletReady}
+                disabled={!walletReady || purchasing || loading}
                 onClick={() => {
                   playTouchSfx();
+                  if (!walletReady) {
+                    setPurchaseError("Wallet coming soon");
+                    return;
+                  }
                   void handlePurchaseInfiniteSpark();
                 }}
               >
-                {purchasing ? "…" : walletReady ? "$0.10" : "Soon"}
+                {!walletReady ? "Soon" : purchasing ? "…" : "$0.10"}
               </button>
             </div>
             <span className="spark-shop-card__tag spark-shop-card__tag--purple">
-              {walletReady ? "Play without limits" : "Wallet coming soon"}
+              Play without limits
             </span>
             {purchaseError && (
               <p className="spark-panel__purchase-error" role="alert">

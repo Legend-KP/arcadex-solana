@@ -1,20 +1,20 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-
-/** Guest-play shell URL (Cloudflare production after guest-mode deploy). */
-const ARCADEX_URL = 'https://arcadex-celo.kushal5paliwal.workers.dev';
+import { getArcadexWebUrl } from './config';
 
 /**
- * Step 1 shell: bare WebView loading ArcadeX.
- * No wallet / Solana bridge yet — prove games load on a real device first.
+ * Step 1 shell: bare WebView loading ArcadeX web build.
+ * Point EXPO_PUBLIC_ARCADEX_URL (or config.js) at your new Cloudflare URL.
  */
 export default function App() {
+  const uri = getArcadexWebUrl();
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
       <WebView
-        source={{ uri: ARCADEX_URL }}
+        source={{ uri }}
         style={styles.webview}
         domStorageEnabled
         javaScriptEnabled

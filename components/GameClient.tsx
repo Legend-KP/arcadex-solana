@@ -299,7 +299,11 @@ export default function GameClient({
       deliverLeaderboardSubmitResult({
         success: false,
         highScore: personalBestRef.current,
-        error: "Wallet coming soon.",
+        error: "Wallet coming soon",
+      });
+      setSubmitToast({
+        phase: "error",
+        message: "Wallet coming soon — paid score submit unlocks with Solana wallet.",
       });
       return;
     }
@@ -542,31 +546,9 @@ export default function GameClient({
           const resolvedWalletAddr =
             walletAddress || payload.walletAddress || profile?.walletAddress || "";
           if (!resolvedWalletAddr) {
-            // Guest play: ack locally so Unity keeps running without MiniPay.
-            const valueToSave =
-              typeof progressValue === "number"
-                ? progressValue
-                : modes
-                  ? Math.max(0, ...Object.values(modes))
-                  : 0;
-            if (typeof valueToSave === "number" && valueToSave > 0) {
-              personalBestRef.current = Math.max(
-                personalBestRef.current,
-                valueToSave
-              );
-            }
             sendToUnity(iframeRef, saveCallback, {
-              success: true,
-              highScore: personalBestRef.current,
-              score: personalBestRef.current,
-              level: typeof progressValue === "number" ? progressValue : 0,
-              value: leaderboardEnabled
-                ? personalBestRef.current
-                : typeof progressValue === "number"
-                  ? progressValue
-                  : 0,
-              modes: modes ?? null,
-              ...lineLinkFieldsFromModes(modes ?? null),
+              success: false,
+              error: "No wallet address available.",
             });
             break;
           }
@@ -622,12 +604,8 @@ export default function GameClient({
             walletAddress || profile?.walletAddress || "";
           if (!wallet) {
             sendToUnity(iframeRef, "OnProgressReceived", {
-              success: true,
-              highScore: personalBestRef.current,
-              score: personalBestRef.current,
-              level: 0,
-              hasLeaderboard: leaderboardEnabled,
-              modes: null,
+              success: false,
+              error: "No wallet address available.",
             });
             break;
           }
@@ -681,7 +659,7 @@ export default function GameClient({
           const wallet =
             walletAddress || profile?.walletAddress || "";
           if (isGuest || !wallet) {
-            notifyFailure("Wallet coming soon.");
+            notifyFailure("Wallet coming soon");
             break;
           }
           if (typeof score !== "number" || score <= 0) {
@@ -725,9 +703,10 @@ export default function GameClient({
             walletAddress || payload.walletAddress || profile?.walletAddress || "";
           if (!wallet) {
             sendToUnity(iframeRef, "OnGameStateReceived", {
-              success: true,
+              success: false,
               found: false,
               requestId,
+              error: "No wallet address available.",
             });
             break;
           }
@@ -766,11 +745,10 @@ export default function GameClient({
             walletAddress || payload.walletAddress || profile?.walletAddress || "";
           if (!wallet) {
             sendToUnity(iframeRef, "OnGameStateSaved", {
-              success: true,
+              success: false,
               conflict: false,
               requestId,
-              revision: typeof payload.baseRevision === "number" ? payload.baseRevision + 1 : 1,
-              state: payload.state ?? {},
+              error: "No wallet address available.",
             });
             break;
           }
@@ -900,8 +878,8 @@ export default function GameClient({
                 {pendingSubmitScore.toLocaleString()}
               </p>
               <p className="lb-submit-confirm__hint">
-                {isGuest || !resolvedWallet
-                  ? "Paid contest submit needs a wallet. Wallet coming soon — keep playing for now."
+                {isGuest
+                  ? "Wallet coming soon — paid contest submit unlocks with Solana wallet connect."
                   : contestLive
                     ? "Submit this score to appear on the contest leaderboard. Pay $0.05 in USDT or USDC. MiniPay will ask you to confirm once."
                     : "Pay $0.05 in USDT or USDC. MiniPay will ask you to confirm once."}
@@ -914,9 +892,9 @@ export default function GameClient({
                     : " lb-submit-confirm__pay--offline"
                 }`}
                 onClick={() => void confirmPendingSubmit()}
-                disabled={payingSubmit || isGuest || !resolvedWallet}
+                disabled={payingSubmit || isGuest}
               >
-                {isGuest || !resolvedWallet
+                {isGuest
                   ? "Wallet coming soon"
                   : payingSubmit
                     ? "Opening wallet…"
