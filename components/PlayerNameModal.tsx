@@ -3,6 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Logo from "@/components/Logo";
+import { useSolanaMwaConnect } from "@/lib/use-solana-mwa-connect";
+import { truncateSolanaAddress } from "@/lib/solana-address";
+import { playTouchSfx } from "@/lib/sfx";
 
 interface PlayerNameModalProps {
   open: boolean;
@@ -20,6 +23,13 @@ export default function PlayerNameModal({
   onSubmit,
 }: PlayerNameModalProps) {
   const [name, setName] = useState(defaultName);
+  const {
+    native,
+    address,
+    busy: connecting,
+    error: connectError,
+    connect,
+  } = useSolanaMwaConnect();
 
   useEffect(() => {
     if (!open) return;
@@ -34,24 +44,42 @@ export default function PlayerNameModal({
   if (!open) return null;
 
   const isValid = name.trim().length >= 1;
+  const busy = saving || connecting;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!isValid || saving) return;
+    if (!isValid || busy) return;
     onSubmit(name.trim());
+  }
+
+  async function handleConnectThenContinue() {
+    playTouchSfx();
+    if (!isValid || busy) return;
+    try {
+      if (!address) await connect();
+      onSubmit(name.trim());
+    } catch {
+      // Stay on modal; connectError shown.
+    }
   }
 
   const modal = (
     <div className="player-modal-backdrop">
-      <div className="player-modal" role="dialog" aria-modal="true" aria-labelledby="player-modal-title">
+      <div
+        className="player-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="player-modal-title"
+      >
         <Logo variant="login" />
         <p className="player-modal-subtitle">Welcome to ArcadeX</p>
         <h2 id="player-modal-title" className="player-modal-title">
           Choose your player name
         </h2>
         <p className="player-modal-hint">
-          This name is saved on this device. Pick something fun — you can keep
-          playing without a wallet.
+          {native
+            ? "Pick a name, then connect your Solana wallet (or continue as a guest)."
+            : "This name is saved on this device. Pick something fun — you can keep playing without a wallet."}
         </p>
 
         <form onSubmit={handleSubmit} className="player-modal-form">
@@ -68,17 +96,50 @@ export default function PlayerNameModal({
             maxLength={20}
             autoFocus
             autoComplete="nickname"
-            disabled={saving}
+            disabled={busy}
           />
           {error && <p className="error-msg">{error}</p>}
+          {connectError && <p className="error-msg">{connectError}</p>}
 
-          <button
-            type="submit"
-            className="player-modal-submit"
-            disabled={saving || !isValid}
-          >
-            {saving ? "Saving..." : "Continue"}
-          </button>
+          {native ? (
+            <>
+              {address ? (
+                <p className="connect-wallet-modal__status">
+                  Wallet connected · {truncateSolanaAddress(address)}
+                </p>
+              ) : null}
+
+              <button
+                type="button"
+                className="player-modal-submit"
+                disabled={busy || !isValid}
+                onClick={() => void handleConnectThenContinue()}
+              >
+                {connecting
+                  ? "Connecting…"
+                  : address
+                    ? saving
+                      ? "Saving..."
+                      : "Continue"
+                    : "Connect wallet & continue"}
+              </button>
+              <button
+                type="submit"
+                className="connect-wallet-modal__skip"
+                disabled={busy || !isValid}
+              >
+                {saving ? "Saving..." : "Continue without wallet"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="submit"
+              className="player-modal-submit"
+              disabled={busy || !isValid}
+            >
+              {saving ? "Saving..." : "Continue"}
+            </button>
+          )}
         </form>
       </div>
     </div>

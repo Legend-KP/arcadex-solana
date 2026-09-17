@@ -14,6 +14,13 @@ import DailyShuffleModal from "@/components/DailyShuffleModal";
 import DailyStreakBrokenModal from "@/components/DailyStreakBrokenModal";
 import OnboardingModal from "@/components/OnboardingModal";
 import PlayerNameModal from "@/components/PlayerNameModal";
+import ConnectWalletModal from "@/components/ConnectWalletModal";
+import {
+  hasSeenMwaConnectPromptThisSession,
+  markMwaConnectPromptSeen,
+} from "@/lib/use-solana-mwa-connect";
+import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
+import { getCachedSolanaAddress } from "@/lib/solana-address";
 import { fetchDailyPlayConfig } from "@/lib/daily-play-config-client";
 import type { DailyPlayMode } from "@/lib/daily-play-mode";
 import {
@@ -119,6 +126,7 @@ export default function PlayerProfileProvider({
   );
   const [isReady, setIsReady] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showConnectWallet, setShowConnectWallet] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
   /** After the broken-streak animation, skip it for this session break. */
   const [streakBrokenDismissed, setStreakBrokenDismissed] = useState(false);
@@ -438,6 +446,8 @@ export default function PlayerProfileProvider({
           setProfile(guestProfile);
           nameCompleteRef.current = true;
           setShowModal(false);
+          // Don't immediately re-prompt connect after name flow (new users already saw it).
+          if (isArcadexNativeShell()) markMwaConnectPromptSeen();
           return;
         }
 
@@ -473,6 +483,7 @@ export default function PlayerProfileProvider({
         setProfile(saved);
         nameCompleteRef.current = true;
         setShowModal(false);
+        if (isArcadexNativeShell()) markMwaConnectPromptSeen();
       } catch (err) {
         nameCompleteRef.current = false;
         setShowModal(true);
@@ -570,6 +581,39 @@ export default function PlayerProfileProvider({
     !showCheckIn &&
     showModal;
 
+  // Returning users in the Seeker APK: prompt once per session if no Solana wallet yet.
+  useEffect(() => {
+    if (!isReady) return;
+    if (!onboardingResolved || onboardingVisible) return;
+    if (showModal || showCheckIn) return;
+    if (!isArcadexNativeShell()) return;
+    if (getCachedSolanaAddress()) return;
+    if (hasSeenMwaConnectPromptThisSession()) return;
+    // Only for users who already have a name (returning / finished name modal).
+    if (!hasPlayerName(profile) && !getCachedPlayerName()?.trim()) return;
+
+    setShowConnectWallet(true);
+  }, [
+    isReady,
+    onboardingResolved,
+    onboardingVisible,
+    showModal,
+    showCheckIn,
+    profile,
+  ]);
+
+  const connectWalletVisible =
+    onboardingResolved &&
+    !onboardingVisible &&
+    !nameModalVisible &&
+    !showCheckIn &&
+    showConnectWallet;
+
+  const handleConnectWalletClose = useCallback(() => {
+    markMwaConnectPromptSeen();
+    setShowConnectWallet(false);
+  }, []);
+
   return (
     <PlayerProfileContext.Provider value={value}>
       {children}
@@ -601,6 +645,13 @@ export default function PlayerProfileProvider({
         error={error}
         defaultName={defaultName}
         onSubmit={handleSubmit}
+      />
+      <ConnectWalletModal
+        open={connectWalletVisible}
+        onClose={handleConnectWalletClose}
+        onConnected={() => {
+          markMwaConnectPromptSeen();
+        }}
       />
     </PlayerProfileContext.Provider>
   );
