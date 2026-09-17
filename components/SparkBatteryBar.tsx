@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { useSparks } from "@/components/SparkProvider";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 import { formatChainError } from "@/lib/celo-public-client";
+import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
+import { getCachedSolanaAddress } from "@/lib/solana-address";
 import { playSuccessSfx, playTouchSfx, preloadSfx } from "@/lib/sfx";
 import { formatSparkCountdown } from "@/lib/spark";
 
@@ -12,7 +14,31 @@ export default function SparkBatteryBar() {
   const { sparks, loading, purchaseInfiniteSpark, purchaseSparkRefill } =
     useSparks();
   const { walletAddress, isGuest } = usePlayerProfile();
+  const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
+  const [nativeShell, setNativeShell] = useState(false);
+  // Payments still MiniPay/Celo for now — Solana connect is Step 4 only.
   const walletReady = Boolean(walletAddress) && !isGuest;
+  const shopNote = nativeShell
+    ? solanaAddress
+      ? "Wallet connected — purchases unlock in the next Solana payment step."
+      : "Connect your Solana wallet (top bar) — purchases unlock next."
+    : "Wallet coming soon — purchases unlock when Solana wallet connect ships.";
+
+  useEffect(() => {
+    setNativeShell(isArcadexNativeShell());
+    setSolanaAddress(getCachedSolanaAddress());
+    const onConnected = (event: Event) => {
+      const detail = (event as CustomEvent<{ address?: string }>).detail;
+      if (detail?.address) setSolanaAddress(detail.address);
+    };
+    const onDisconnected = () => setSolanaAddress(null);
+    window.addEventListener("arcadex-solana-connected", onConnected);
+    window.addEventListener("arcadex-solana-disconnected", onDisconnected);
+    return () => {
+      window.removeEventListener("arcadex-solana-connected", onConnected);
+      window.removeEventListener("arcadex-solana-disconnected", onDisconnected);
+    };
+  }, []);
   const [open, setOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [refilling, setRefilling] = useState(false);
@@ -219,8 +245,7 @@ export default function SparkBatteryBar() {
 
           {!walletReady && (
             <p className="spark-panel__shop-note" role="status">
-              Wallet coming soon — purchases unlock when Solana wallet connect
-              ships.
+              {shopNote}
             </p>
           )}
 

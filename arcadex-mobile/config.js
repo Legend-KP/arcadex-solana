@@ -1,11 +1,17 @@
 /**
- * Web URL loaded by the ArcadeX Android WebView shell.
- *
- * After you create the new Cloudflare production Worker, set:
- *   EXPO_PUBLIC_ARCADEX_URL=https://your-new-domain.example
- * or edit DEFAULT_ARCADEX_WEB_URL below, then rebuild the preview APK.
+ * ArcadeX Seeker shell config.
+ * Web URL + MWA app identity for connect-only authorize.
  */
 export const DEFAULT_ARCADEX_WEB_URL = "https://arcadexseeker.trenchverse.com";
+
+/** MWA chain id — mainnet for Seeker production testing. */
+export const SOLANA_CHAIN = "solana:mainnet";
+
+export const APP_IDENTITY = {
+  name: "ArcadeX",
+  uri: "https://arcadexseeker.trenchverse.com",
+  icon: "favicon.ico",
+};
 
 export function getArcadexWebUrl() {
   const fromEnv =

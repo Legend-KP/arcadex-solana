@@ -6,6 +6,7 @@ import AppFooter from "@/components/AppFooter";
 import GameCard from "@/components/GameCard";
 import Logo from "@/components/Logo";
 import SparkBatteryBar from "@/components/SparkBatteryBar";
+import ConnectWalletButton from "@/components/ConnectWalletButton";
 import ActivityLeaderboardButton from "@/components/ActivityLeaderboardButton";
 import {
   readCachedGamesList,
@@ -92,6 +93,7 @@ export default function HomePage() {
         <header className="topbar">
           <Logo variant="header" />
           <div className="topbar-actions">
+            <ConnectWalletButton />
             <ActivityLeaderboardButton />
             <SparkBatteryBar />
           </div>
