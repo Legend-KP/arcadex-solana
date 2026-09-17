@@ -29,6 +29,7 @@ export default function PlayerNameModal({
     busy: connecting,
     error: connectError,
     connect,
+    signedIn,
   } = useSolanaMwaConnect();
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export default function PlayerNameModal({
     playTouchSfx();
     if (!isValid || busy) return;
     try {
-      if (!address) await connect();
+      if (!address || !signedIn) await connect();
       onSubmit(name.trim());
     } catch {
       // Stay on modal; connectError shown.
@@ -78,7 +79,7 @@ export default function PlayerNameModal({
         </h2>
         <p className="player-modal-hint">
           {native
-            ? "Pick a name, then connect your Solana wallet (or continue as a guest)."
+            ? "Pick a name, then connect & sign in with your Solana wallet (free message — no SOL spent). Or continue as a guest."
             : "This name is saved on this device. Pick something fun — you can keep playing without a wallet."}
         </p>
 
@@ -105,7 +106,8 @@ export default function PlayerNameModal({
             <>
               {address ? (
                 <p className="connect-wallet-modal__status">
-                  Wallet connected · {truncateSolanaAddress(address)}
+                  {signedIn ? "Signed in" : "Connected"} ·{" "}
+                  {truncateSolanaAddress(address)}
                 </p>
               ) : null}
 
@@ -116,12 +118,12 @@ export default function PlayerNameModal({
                 onClick={() => void handleConnectThenContinue()}
               >
                 {connecting
-                  ? "Connecting…"
-                  : address
+                  ? "Waiting for wallet…"
+                  : address && signedIn
                     ? saving
                       ? "Saving..."
                       : "Continue"
-                    : "Connect wallet & continue"}
+                    : "Connect, sign in & continue"}
               </button>
               <button
                 type="submit"

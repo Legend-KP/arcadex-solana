@@ -10,13 +10,13 @@ import { getArcadexWebUrl } from "./config";
 import {
   INJECTED_SHELL_FLAG,
   buildNativeReplyScript,
-  connectMwaWallet,
+  connectAndSignInMwaWallet,
   disconnectMwaWallet,
 } from "./mwa";
 
 /**
- * Step 4 shell: WebView + connect-only Mobile Wallet Adapter bridge.
- * Web posts MWA_CONNECT / MWA_DISCONNECT; native opens the installed MWA wallet.
+ * WebView + MWA bridge.
+ * Step 4: connect · Step 5: free sign-in message (same wallet session).
  */
 export default function App() {
   const uri = getArcadexWebUrl();
@@ -53,16 +53,19 @@ export default function App() {
 
       const requestId = msg.requestId ?? null;
 
-      if (msg.type === "MWA_CONNECT") {
+      if (msg.type === "MWA_CONNECT" || msg.type === "MWA_SIGN_IN") {
         try {
-          const connected = await connectMwaWallet(storage);
+          const signedIn = await connectAndSignInMwaWallet(storage);
           reply({
             source: "arcadex-native",
             type: "MWA_CONNECT_RESULT",
             requestId,
             ok: true,
-            address: connected.address,
-            label: connected.label,
+            address: signedIn.address,
+            label: signedIn.label,
+            message: signedIn.message,
+            signatureBase64: signedIn.signatureBase64,
+            signedIn: true,
           });
         } catch (err) {
           reply({
@@ -71,7 +74,9 @@ export default function App() {
             requestId,
             ok: false,
             error:
-              err instanceof Error ? err.message : "Wallet connection failed.",
+              err instanceof Error
+                ? err.message
+                : "Wallet connect / sign-in failed.",
           });
         }
         return;

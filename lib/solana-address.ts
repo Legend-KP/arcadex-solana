@@ -24,6 +24,8 @@ export function truncateSolanaAddress(
 
 const SOLANA_ADDRESS_KEY = "arcadex_solana_address";
 const SOLANA_LABEL_KEY = "arcadex_solana_label";
+const SOLANA_SIGNIN_MESSAGE_KEY = "arcadex_solana_signin_message";
+const SOLANA_SIGNIN_SIG_KEY = "arcadex_solana_signin_signature";
 
 export function getCachedSolanaAddress(): string | null {
   if (typeof window === "undefined") return null;
@@ -42,10 +44,36 @@ export function setCachedSolanaAddress(
   else localStorage.removeItem(SOLANA_LABEL_KEY);
 }
 
+export function setCachedSolanaSignIn(
+  message: string,
+  signatureBase64: string
+): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SOLANA_SIGNIN_MESSAGE_KEY, message);
+  localStorage.setItem(SOLANA_SIGNIN_SIG_KEY, signatureBase64);
+}
+
+export function getCachedSolanaSignIn(): {
+  message: string;
+  signatureBase64: string;
+} | null {
+  if (typeof window === "undefined") return null;
+  const message = localStorage.getItem(SOLANA_SIGNIN_MESSAGE_KEY);
+  const signatureBase64 = localStorage.getItem(SOLANA_SIGNIN_SIG_KEY);
+  if (!message || !signatureBase64) return null;
+  return { message, signatureBase64 };
+}
+
+export function hasCachedSolanaSignIn(): boolean {
+  return Boolean(getCachedSolanaSignIn());
+}
+
 export function clearCachedSolanaAddress(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(SOLANA_ADDRESS_KEY);
   localStorage.removeItem(SOLANA_LABEL_KEY);
+  localStorage.removeItem(SOLANA_SIGNIN_MESSAGE_KEY);
+  localStorage.removeItem(SOLANA_SIGNIN_SIG_KEY);
 }
 
 export function getCachedSolanaLabel(): string | null {

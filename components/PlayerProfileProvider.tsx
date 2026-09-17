@@ -20,7 +20,7 @@ import {
   markMwaConnectPromptSeen,
 } from "@/lib/use-solana-mwa-connect";
 import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
-import { getCachedSolanaAddress } from "@/lib/solana-address";
+import { getCachedSolanaAddress, hasCachedSolanaSignIn } from "@/lib/solana-address";
 import { fetchDailyPlayConfig } from "@/lib/daily-play-config-client";
 import type { DailyPlayMode } from "@/lib/daily-play-mode";
 import {
@@ -587,7 +587,7 @@ export default function PlayerProfileProvider({
     if (!onboardingResolved || onboardingVisible) return;
     if (showModal || showCheckIn) return;
     if (!isArcadexNativeShell()) return;
-    if (getCachedSolanaAddress()) return;
+    if (getCachedSolanaAddress() && hasCachedSolanaSignIn()) return;
     if (hasSeenMwaConnectPromptThisSession()) return;
     // Only for users who already have a name (returning / finished name modal).
     if (!hasPlayerName(profile) && !getCachedPlayerName()?.trim()) return;

@@ -20,8 +20,8 @@ export default function SparkBatteryBar() {
   const walletReady = Boolean(walletAddress) && !isGuest;
   const shopNote = nativeShell
     ? solanaAddress
-      ? "Wallet connected — purchases unlock in the next Solana payment step."
-      : "Connect your Solana wallet (top bar) — purchases unlock next."
+      ? "Wallet signed in — Spark purchases unlock in the Solana payments step."
+      : "Connect & sign in (welcome popup) — purchases unlock next."
     : "Wallet coming soon — purchases unlock when Solana wallet connect ships.";
 
   useEffect(() => {

@@ -1,7 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import {
-  transact,
-} from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
+import { transact } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
 import { Buffer } from "buffer";
 import { APP_IDENTITY, SOLANA_CHAIN } from "./config";
 
@@ -22,7 +20,20 @@ export function mwaAddressToBase58(address) {
   return new PublicKey(bytes).toBase58();
 }
 
-export async function connectMwaWallet(AsyncStorage) {
+function buildSignInMessage(address) {
+  return [
+    "Sign in to ArcadeX",
+    "Domain: arcadexseeker.trenchverse.com",
+    `Wallet: ${address}`,
+    `Issued At: ${new Date().toISOString()}`,
+  ].join("\n");
+}
+
+/**
+ * Step 4+5: authorize + free sign-in message in one MWA session.
+ * Not a paid SOL transfer — ownership proof only (no gas).
+ */
+export async function connectAndSignInMwaWallet(AsyncStorage) {
   const storedAuthToken = AsyncStorage
     ? await AsyncStorage.getItem(AUTH_TOKEN_KEY)
     : null;
@@ -33,24 +44,45 @@ export async function connectMwaWallet(AsyncStorage) {
       identity: APP_IDENTITY,
       ...(storedAuthToken ? { auth_token: storedAuthToken } : {}),
     });
-    return authorizationResult;
+
+    const account = authorizationResult.accounts?.[0];
+    if (!account?.address) {
+      throw new Error("Wallet connected but returned no account.");
+    }
+
+    const address = mwaAddressToBase58(account.address);
+    const message = buildSignInMessage(address);
+    const messageBytes = new Uint8Array(Buffer.from(message, "utf8"));
+
+    const signed = await wallet.signMessages({
+      addresses: [account.address],
+      payloads: [messageBytes],
+    });
+
+    const signatureBytes = signed?.[0];
+    if (!signatureBytes) {
+      throw new Error("Wallet did not return a sign-in signature.");
+    }
+
+    return {
+      address,
+      label: account.label ?? null,
+      authToken: authorizationResult.auth_token ?? null,
+      message,
+      signatureBase64: Buffer.from(signatureBytes).toString("base64"),
+    };
   });
 
-  const account = result.accounts?.[0];
-  if (!account?.address) {
-    throw new Error("Wallet connected but returned no account.");
+  if (AsyncStorage && result.authToken) {
+    await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.authToken);
   }
 
-  const address = mwaAddressToBase58(account.address);
-  if (AsyncStorage && result.auth_token) {
-    await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.auth_token);
-  }
+  return result;
+}
 
-  return {
-    address,
-    authToken: result.auth_token ?? null,
-    label: account.label ?? null,
-  };
+/** @deprecated Prefer connectAndSignInMwaWallet for Step 5. */
+export async function connectMwaWallet(AsyncStorage) {
+  return connectAndSignInMwaWallet(AsyncStorage);
 }
 
 export async function disconnectMwaWallet(AsyncStorage) {

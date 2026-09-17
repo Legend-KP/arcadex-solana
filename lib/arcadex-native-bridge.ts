@@ -1,6 +1,6 @@
 /**
  * Bridge between ArcadeX web (Cloudflare) and the Expo native shell.
- * Connect-only MWA for Step 4 — no transactions yet.
+ * Step 4: connect · Step 5: free sign-in message (same MWA session).
  */
 
 export type NativeBridgeMessage =
@@ -11,6 +11,9 @@ export type NativeBridgeMessage =
       ok: true;
       address: string;
       label?: string | null;
+      message?: string;
+      signatureBase64?: string;
+      signedIn?: boolean;
     }
   | {
       source: "arcadex-native";
@@ -99,11 +102,19 @@ function newRequestId(): string {
   return `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Open the device MWA wallet picker and return the authorized Solana address. */
-export async function requestMwaConnect(): Promise<{
+export interface MwaSignInResult {
   address: string;
   label?: string | null;
-}> {
+  message: string;
+  signatureBase64: string;
+  signedIn: boolean;
+}
+
+/**
+ * Authorize + sign a free ArcadeX sign-in message in one wallet session.
+ * Not a paid on-chain transfer.
+ */
+export async function requestMwaConnectAndSignIn(): Promise<MwaSignInResult> {
   const requestId = newRequestId();
   const pending = waitForNativeResult<
     Extract<NativeBridgeMessage, { type: "MWA_CONNECT_RESULT" }>
@@ -111,14 +122,32 @@ export async function requestMwaConnect(): Promise<{
 
   postToNative({
     source: "arcadex-web",
-    type: "MWA_CONNECT",
+    type: "MWA_SIGN_IN",
     requestId,
   });
 
   const result = await pending;
   if (!result.ok) {
-    throw new Error(result.error || "Wallet connection failed.");
+    throw new Error(result.error || "Wallet connect / sign-in failed.");
   }
+  if (!result.message || !result.signatureBase64) {
+    throw new Error("Wallet connected but sign-in signature was missing.");
+  }
+  return {
+    address: result.address,
+    label: result.label,
+    message: result.message,
+    signatureBase64: result.signatureBase64,
+    signedIn: true,
+  };
+}
+
+/** @deprecated Use requestMwaConnectAndSignIn — Step 5 always signs in. */
+export async function requestMwaConnect(): Promise<{
+  address: string;
+  label?: string | null;
+}> {
+  const result = await requestMwaConnectAndSignIn();
   return { address: result.address, label: result.label };
 }
 

@@ -18,7 +18,7 @@ export default function ConnectWalletModal({
   onClose,
   onConnected,
 }: ConnectWalletModalProps) {
-  const { address, busy, error, connect } = useSolanaMwaConnect();
+  const { address, busy, error, connect, signedIn } = useSolanaMwaConnect();
 
   if (!open) return null;
 
@@ -49,16 +49,17 @@ export default function ConnectWalletModal({
         <Logo variant="login" />
         <p className="player-modal-subtitle">Welcome back</p>
         <h2 id="connect-wallet-title" className="player-modal-title">
-          Connect your Solana wallet
+          Connect &amp; sign in
         </h2>
         <p className="player-modal-hint">
-          Link Phantom, Seed Vault, Solflare, or any MWA wallet on this device.
-          You can skip and keep playing as a guest.
+          Approve a free Sign-In message in Phantom, Seed Vault, Solflare, or
+          any MWA wallet. No SOL is spent — this only proves wallet ownership.
         </p>
 
         {address ? (
           <p className="connect-wallet-modal__status">
-            Connected · {truncateSolanaAddress(address)}
+            {signedIn ? "Signed in" : "Connected"} ·{" "}
+            {truncateSolanaAddress(address)}
           </p>
         ) : null}
 
@@ -71,7 +72,11 @@ export default function ConnectWalletModal({
             onClick={() => void handleConnect()}
             disabled={busy}
           >
-            {busy ? "Connecting…" : address ? "Connected — Continue" : "Connect wallet"}
+            {busy
+              ? "Waiting for wallet…"
+              : address && signedIn
+                ? "Signed in — Continue"
+                : "Connect & sign in"}
           </button>
           <button
             type="button"
