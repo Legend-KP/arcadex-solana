@@ -20,6 +20,7 @@ export function solanaMemoForPurpose(purpose) {
 }
 
 export function getSolanaRpcUrl() {
+  // Prefer a private RPC (Helius / QuickNode). Public mainnet often 403/rate-limits phones.
   return (
     (typeof process !== "undefined" &&
       process.env?.EXPO_PUBLIC_SOLANA_RPC_URL?.trim()) ||

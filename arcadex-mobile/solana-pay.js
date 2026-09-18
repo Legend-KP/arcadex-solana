@@ -1,6 +1,6 @@
 /**
  * Build mainnet SPL fee transfers for ArcadeX (native MWA sign & send).
- * Prepare heavy RPC work BEFORE opening the wallet session.
+ * All RPC + assembly happens BEFORE opening the wallet session.
  */
 
 import {
@@ -29,7 +29,7 @@ const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
 
-function getConnection() {
+export function getConnection() {
   return new Connection(getSolanaRpcUrl(), "confirmed");
 }
 
@@ -83,7 +83,7 @@ export async function prepareArcadePay(opts) {
 }
 
 /**
- * Fast assemble — call INSIDE `transact()` right after authorize.
+ * Assemble a ready-to-sign Transaction (no RPC).
  * @param {object} prepared from prepareArcadePay
  * @param {string} blockhash
  * @param {number} lastValidBlockHeight
@@ -102,9 +102,10 @@ export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
     lastValidBlockHeight,
   });
 
+  // Idempotent ATA create — no-op if treasury ATA already exists.
   tx.add(
     createAssociatedTokenAccountIdempotentInstruction(
-      payer,
+      payer, // payer of rent if ATA is created
       destAta,
       treasury,
       mint
@@ -138,4 +139,32 @@ export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
 export async function fetchFreshBlockhash() {
   const connection = getConnection();
   return connection.getLatestBlockhash("confirmed");
+}
+
+/**
+ * Full prepare + blockhash + assemble. Call entirely BEFORE `transact()`.
+ * @param {{ payerBase58: string, purpose: string, token: string }} opts
+ */
+export async function buildArcadePayTx(opts) {
+  const prepared = await prepareArcadePay(opts);
+  const { blockhash, lastValidBlockHeight } = await fetchFreshBlockhash();
+  const transaction = assembleArcadePayTx(
+    prepared,
+    blockhash,
+    lastValidBlockHeight
+  );
+  return { prepared, transaction, blockhash, lastValidBlockHeight };
+}
+
+/** Broadcast a signed tx (fallback when wallet signs but does not send). */
+export async function sendSignedArcadePayTx(signedTx) {
+  const connection = getConnection();
+  const raw =
+    typeof signedTx.serialize === "function"
+      ? signedTx.serialize()
+      : signedTx;
+  return connection.sendRawTransaction(raw, {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
 }

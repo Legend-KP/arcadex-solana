@@ -179,6 +179,13 @@ function ArcadeShell() {
               address: paid.address,
             });
           } catch (err) {
+            console.warn(
+              "MWA_PAY_ERROR",
+              "app_handler",
+              err?.name,
+              err?.message,
+              err?.stack
+            );
             await reply({
               source: "arcadex-native",
               type: "MWA_PAY_RESULT",

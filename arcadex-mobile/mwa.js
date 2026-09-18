@@ -165,50 +165,60 @@ export async function connectMwaWallet(AsyncStorage) {
   return connectAndSignInMwaWallet(AsyncStorage);
 }
 
+function logMwaPayError(label, err) {
+  console.warn(
+    "MWA_PAY_ERROR",
+    label,
+    err?.name,
+    err?.code,
+    err?.message,
+    err?.stack
+  );
+}
+
 /**
- * Paid SPL fee. Prepares tx OUTSIDE the wallet session, then authorize+send fast.
+ * Paid SPL fee. Build the full tx OUTSIDE the wallet session.
+ * Inside `transact`: authorize + sign/send only (no RPC).
  * @param {{ purpose: string, token: string, payerBase58?: string }} opts
  */
 export async function payArcadeFeeMwa(AsyncStorage, opts) {
   return withMwaLock(async () => {
-    const {
-      prepareArcadePay,
-      assembleArcadePayTx,
-      fetchFreshBlockhash,
-    } = await import("./solana-pay");
+    const { buildArcadePayTx, sendSignedArcadePayTx } = await import(
+      "./solana-pay"
+    );
 
     const payerBase58 = opts.payerBase58?.trim();
     if (!payerBase58) {
       throw new Error("Connect & sign in with your Solana wallet first.");
     }
 
-    // Heavy RPC before opening Phantom — avoids MWA session timeout.
-    const prepared = await prepareArcadePay({
-      payerBase58,
-      purpose: opts.purpose,
-      token: opts.token,
-    });
+    // ALL RPC + assembly before Phantom opens.
+    let built;
+    try {
+      built = await buildArcadePayTx({
+        payerBase58,
+        purpose: opts.purpose,
+        token: opts.token,
+      });
+    } catch (err) {
+      logMwaPayError("build_tx", err);
+      throw new Error(formatMwaError(err, "Payment failed."));
+    }
 
     const storedAuthToken = AsyncStorage
       ? await AsyncStorage.getItem(AUTH_TOKEN_KEY)
       : null;
 
-    const run = async (authToken) =>
-      transact(async (wallet) => {
+    const run = async (authToken) => {
+      const result = await transact(async (wallet) => {
         const authorizationResult = await authorizeWallet(wallet, authToken);
-
-        if (AsyncStorage && authorizationResult.auth_token) {
-          await AsyncStorage.setItem(
-            AUTH_TOKEN_KEY,
-            authorizationResult.auth_token
-          );
-        }
 
         const account = authorizationResult.accounts?.[0];
         if (!account?.address) {
           throw new Error("Wallet authorized but returned no account.");
         }
 
+        // MWA 2.0 address is base64 — decode before comparing to cached base58.
         const address = mwaAddressToBase58(account.address);
         if (address !== payerBase58) {
           throw new Error(
@@ -216,34 +226,83 @@ export async function payArcadeFeeMwa(AsyncStorage, opts) {
           );
         }
 
-        const { blockhash, lastValidBlockHeight } = await fetchFreshBlockhash();
-        const transaction = assembleArcadePayTx(
-          prepared,
-          blockhash,
-          lastValidBlockHeight
-        );
+        let signature;
+        try {
+          const signatures = await wallet.signAndSendTransactions({
+            transactions: [built.transaction],
+          });
+          signature = signatures?.[0];
+        } catch (sendErr) {
+          logMwaPayError("signAndSend", sendErr);
+          if (isUserCancellation(sendErr)) {
+            throw sendErr;
+          }
+          // Fallback: sign only, then we broadcast via RPC after the session.
+          const signed = await wallet.signTransactions({
+            transactions: [built.transaction],
+          });
+          const signedTx = signed?.[0];
+          if (!signedTx) {
+            throw sendErr;
+          }
+          return {
+            address,
+            authToken: authorizationResult.auth_token ?? null,
+            needsBroadcast: true,
+            signedTx,
+            purpose: opts.purpose,
+            token: opts.token,
+          };
+        }
 
-        const signatures = await wallet.signAndSendTransactions({
-          transactions: [transaction],
-        });
-
-        const signature = signatures?.[0];
         if (!signature) {
           throw new Error("Wallet did not return a payment signature.");
         }
 
         return {
           address,
-          purpose: opts.purpose,
-          token: opts.token,
+          authToken: authorizationResult.auth_token ?? null,
+          needsBroadcast: false,
           signature:
             typeof signature === "string" ? signature : String(signature),
+          purpose: opts.purpose,
+          token: opts.token,
         };
       });
+
+      // Persist token OUTSIDE the session (avoid slow I/O while Phantom is open).
+      if (AsyncStorage && result.authToken) {
+        await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.authToken);
+      }
+
+      if (result.needsBroadcast) {
+        try {
+          const signature = await sendSignedArcadePayTx(result.signedTx);
+          return {
+            address: result.address,
+            purpose: result.purpose,
+            token: result.token,
+            signature:
+              typeof signature === "string" ? signature : String(signature),
+          };
+        } catch (broadcastErr) {
+          logMwaPayError("broadcast", broadcastErr);
+          throw broadcastErr;
+        }
+      }
+
+      return {
+        address: result.address,
+        purpose: result.purpose,
+        token: result.token,
+        signature: result.signature,
+      };
+    };
 
     try {
       return await run(storedAuthToken);
     } catch (err) {
+      logMwaPayError("session", err);
       if (isUserCancellation(err)) {
         throw new Error(formatMwaError(err));
       }
@@ -252,6 +311,7 @@ export async function payArcadeFeeMwa(AsyncStorage, opts) {
         try {
           return await run(null);
         } catch (err2) {
+          logMwaPayError("session_retry", err2);
           throw new Error(formatMwaError(err2, "Payment failed."));
         }
       }
