@@ -11,7 +11,7 @@ export const APP_IDENTITY = {
   name: "ArcadeX",
   uri: "https://arcadexseeker.trenchverse.com",
   // MWA: must be relative to `uri` (absolute https:// URLs cause -32602).
-  icon: "logo.png",
+  icon: "app-icon.png",
 };
 
 export function getArcadexWebUrl() {
