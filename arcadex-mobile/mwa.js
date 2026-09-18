@@ -24,12 +24,37 @@ function toBase64UrlJson(value) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
 }
 
+/**
+ * MWA account.address is usually base64, but some wallets return base58.
+ * Trying the wrong decode makes the "wallet changed" check fail and aborts
+ * before the sign popup.
+ */
 export function mwaAddressToBase58(address) {
-  const bytes =
-    typeof address === "string"
-      ? Buffer.from(address, "base64")
-      : Buffer.from(address);
-  return new PublicKey(bytes).toBase58();
+  if (address instanceof PublicKey) {
+    return address.toBase58();
+  }
+  if (typeof address !== "string") {
+    return new PublicKey(Buffer.from(address)).toBase58();
+  }
+
+  const trimmed = address.trim();
+  // Already base58 (Solana pubkey charset, typical length 32–44).
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed)) {
+    try {
+      return new PublicKey(trimmed).toBase58();
+    } catch {
+      /* fall through */
+    }
+  }
+
+  try {
+    return new PublicKey(Buffer.from(trimmed, "base64")).toBase58();
+  } catch {
+    /* fall through */
+  }
+
+  // Last resort: treat as raw base58 again (throws a clear error).
+  return new PublicKey(trimmed).toBase58();
 }
 
 function buildSignInMessage(address) {
@@ -89,6 +114,18 @@ export function formatMwaError(err, fallback = "Wallet request failed.") {
 }
 
 async function authorizeWallet(wallet, authToken) {
+  // Prefer reauthorize when we already have a token (avoids connect UI).
+  if (authToken && typeof wallet.reauthorize === "function") {
+    try {
+      return await wallet.reauthorize({
+        auth_token: authToken,
+        identity: APP_IDENTITY,
+      });
+    } catch (err) {
+      console.warn("MWA_PAY", "reauthorize_failed", err?.message);
+      // Fall through to full authorize.
+    }
+  }
   return wallet.authorize({
     chain: SOLANA_CHAIN,
     identity: APP_IDENTITY,
@@ -178,7 +215,7 @@ function logMwaPayError(label, err) {
 
 /**
  * Paid SPL fee. Build the full tx OUTSIDE the wallet session.
- * Inside `transact`: authorize + sign/send only (no RPC).
+ * Inside `transact`: authorize + sign only (we broadcast ourselves).
  * @param {{ purpose: string, token: string, payerBase58?: string }} opts
  */
 export async function payArcadeFeeMwa(AsyncStorage, opts) {
@@ -209,94 +246,76 @@ export async function payArcadeFeeMwa(AsyncStorage, opts) {
       ? await AsyncStorage.getItem(AUTH_TOKEN_KEY)
       : null;
 
+    console.warn(
+      "MWA_PAY",
+      "open_session",
+      storedAuthToken ? "has_token" : "no_token",
+      payerBase58.slice(0, 8)
+    );
+
     const run = async (authToken) => {
       const result = await transact(async (wallet) => {
+        console.warn("MWA_PAY", "authorize_start");
         const authorizationResult = await authorizeWallet(wallet, authToken);
+        console.warn("MWA_PAY", "authorize_ok");
 
         const account = authorizationResult.accounts?.[0];
         if (!account?.address) {
           throw new Error("Wallet authorized but returned no account.");
         }
 
-        // MWA 2.0 address is base64 — decode before comparing to cached base58.
         const address = mwaAddressToBase58(account.address);
+        console.warn("MWA_PAY", "authorized_address", address.slice(0, 8));
+
         if (address !== payerBase58) {
+          // Do NOT call sign with a mismatched feePayer — Phantom would
+          // close without a usable popup. Surface a clear error instead.
           throw new Error(
-            "Connected wallet changed. Sign in again, then retry payment."
+            `Wallet mismatch. Signed in as ${payerBase58.slice(0, 4)}… but Phantom authorized ${address.slice(0, 4)}…. Sign in again with the same wallet.`
           );
         }
 
-        let signature;
-        try {
-          const signatures = await wallet.signAndSendTransactions({
-            transactions: [built.transaction],
-          });
-          signature = signatures?.[0];
-        } catch (sendErr) {
-          logMwaPayError("signAndSend", sendErr);
-          if (isUserCancellation(sendErr)) {
-            throw sendErr;
-          }
-          // Fallback: sign only, then we broadcast via RPC after the session.
-          const signed = await wallet.signTransactions({
-            transactions: [built.transaction],
-          });
-          const signedTx = signed?.[0];
-          if (!signedTx) {
-            throw sendErr;
-          }
-          return {
-            address,
-            authToken: authorizationResult.auth_token ?? null,
-            needsBroadcast: true,
-            signedTx,
-            purpose: opts.purpose,
-            token: opts.token,
-          };
-        }
+        // Prefer signTransactions — Phantom shows the approve sheet more
+        // reliably than signAndSend for some SPL transfers.
+        console.warn("MWA_PAY", "sign_start");
+        const signed = await wallet.signTransactions({
+          transactions: [built.transaction],
+        });
+        console.warn("MWA_PAY", "sign_ok");
 
-        if (!signature) {
-          throw new Error("Wallet did not return a payment signature.");
+        const signedTx = signed?.[0];
+        if (!signedTx) {
+          throw new Error("Wallet did not return a signed payment.");
         }
 
         return {
           address,
           authToken: authorizationResult.auth_token ?? null,
-          needsBroadcast: false,
-          signature:
-            typeof signature === "string" ? signature : String(signature),
+          signedTx,
           purpose: opts.purpose,
           token: opts.token,
         };
       });
 
-      // Persist token OUTSIDE the session (avoid slow I/O while Phantom is open).
       if (AsyncStorage && result.authToken) {
         await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.authToken);
       }
 
-      if (result.needsBroadcast) {
-        try {
-          const signature = await sendSignedArcadePayTx(result.signedTx);
-          return {
-            address: result.address,
-            purpose: result.purpose,
-            token: result.token,
-            signature:
-              typeof signature === "string" ? signature : String(signature),
-          };
-        } catch (broadcastErr) {
-          logMwaPayError("broadcast", broadcastErr);
-          throw broadcastErr;
-        }
+      console.warn("MWA_PAY", "broadcast_start");
+      try {
+        const signature = await sendSignedArcadePayTx(result.signedTx);
+        console.warn("MWA_PAY", "broadcast_ok", String(signature).slice(0, 12));
+        return {
+          address: result.address,
+          purpose: result.purpose,
+          token: result.token,
+          signature:
+            typeof signature === "string" ? signature : String(signature),
+        };
+      } catch (broadcastErr) {
+        logMwaPayError("broadcast", broadcastErr);
+        throw broadcastErr;
       }
-
-      return {
-        address: result.address,
-        purpose: result.purpose,
-        token: result.token,
-        signature: result.signature,
-      };
     };
 
     try {

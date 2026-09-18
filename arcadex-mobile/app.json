@@ -16,7 +16,7 @@
     },
     "android": {
       "package": "com.trenchverse.arcadex",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",

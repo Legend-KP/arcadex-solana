@@ -8,6 +8,7 @@ import {
   PublicKey,
   Transaction,
   TransactionInstruction,
+  LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
@@ -29,8 +30,34 @@ const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
 
+/** ~rent for one ATA + a few tx fees */
+const MIN_SOL_LAMPORTS = Math.floor(0.004 * LAMPORTS_PER_SOL);
+
 export function getConnection() {
-  return new Connection(getSolanaRpcUrl(), "confirmed");
+  return new Connection(getSolanaRpcUrl(), {
+    commitment: "confirmed",
+    confirmTransactionInitialTimeout: 60_000,
+  });
+}
+
+async function withRpcTimeout(promise, label, ms = 20_000) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              `RPC timeout (${label}). Set EXPO_PUBLIC_SOLANA_RPC_URL to a private RPC (Helius/QuickNode).`
+            )
+          );
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**
@@ -53,19 +80,39 @@ export async function prepareArcadePay(opts) {
   const sourceAta = getAssociatedTokenAddressSync(mint, payer);
   const destAta = getAssociatedTokenAddressSync(mint, treasury);
 
-  const sourceInfo = await connection.getAccountInfo(sourceAta);
+  const [sourceInfo, destInfo, solLamports, balance] = await withRpcTimeout(
+    Promise.all([
+      connection.getAccountInfo(sourceAta),
+      connection.getAccountInfo(destAta),
+      connection.getBalance(payer),
+      connection.getTokenAccountBalance(sourceAta).catch(() => null),
+    ]),
+    "prepare"
+  );
+
   if (!sourceInfo) {
     throw new Error(
       `No ${token} token account in this wallet. Fund USDC/USDT on Solana mainnet first.`
     );
   }
 
-  const balance = await connection.getTokenAccountBalance(sourceAta);
   const have = BigInt(balance?.value?.amount ?? "0");
   if (have < amount) {
     const need = Number(amount) / 10 ** SOLANA_STABLE_DECIMALS;
     throw new Error(
       `Insufficient ${token}. Need at least $${need.toFixed(2)} plus a little SOL for fees.`
+    );
+  }
+
+  const needAtaCreate = !destInfo;
+  if (needAtaCreate && solLamports < MIN_SOL_LAMPORTS) {
+    throw new Error(
+      "Not enough SOL. Need ~0.005 SOL for network fees and to create the treasury token account."
+    );
+  }
+  if (!needAtaCreate && solLamports < 50_000) {
+    throw new Error(
+      "Not enough SOL for the network fee. Keep ~0.002 SOL in this wallet."
     );
   }
 
@@ -79,6 +126,7 @@ export async function prepareArcadePay(opts) {
     treasuryBase58: treasury.toBase58(),
     amount: Number(amount),
     memo: solanaMemoForPurpose(purpose),
+    needAtaCreate,
   };
 }
 
@@ -96,21 +144,22 @@ export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
   const treasury = new PublicKey(prepared.treasuryBase58);
   const amount = BigInt(prepared.amount);
 
-  const tx = new Transaction({
-    feePayer: payer,
-    blockhash,
-    lastValidBlockHeight,
-  });
+  const tx = new Transaction();
+  tx.feePayer = payer;
+  tx.recentBlockhash = blockhash;
+  tx.lastValidBlockHeight = lastValidBlockHeight;
 
-  // Idempotent ATA create — no-op if treasury ATA already exists.
-  tx.add(
-    createAssociatedTokenAccountIdempotentInstruction(
-      payer, // payer of rent if ATA is created
-      destAta,
-      treasury,
-      mint
-    )
-  );
+  // Only add ATA create when needed (saves rent + avoids Phantom sim surprises).
+  if (prepared.needAtaCreate) {
+    tx.add(
+      createAssociatedTokenAccountIdempotentInstruction(
+        payer,
+        destAta,
+        treasury,
+        mint
+      )
+    );
+  }
 
   tx.add(
     createTransferCheckedInstruction(
@@ -133,12 +182,24 @@ export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
     })
   );
 
+  // Prove the tx can be serialized before opening Phantom.
+  try {
+    tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+  } catch (err) {
+    throw new Error(
+      `Could not build payment tx: ${err?.message || err}. Check Buffer polyfill / feePayer.`
+    );
+  }
+
   return tx;
 }
 
 export async function fetchFreshBlockhash() {
   const connection = getConnection();
-  return connection.getLatestBlockhash("confirmed");
+  return withRpcTimeout(
+    connection.getLatestBlockhash("confirmed"),
+    "blockhash"
+  );
 }
 
 /**
@@ -146,6 +207,7 @@ export async function fetchFreshBlockhash() {
  * @param {{ payerBase58: string, purpose: string, token: string }} opts
  */
 export async function buildArcadePayTx(opts) {
+  console.warn("MWA_PAY", "build_start", getSolanaRpcUrl(), opts.purpose, opts.token);
   const prepared = await prepareArcadePay(opts);
   const { blockhash, lastValidBlockHeight } = await fetchFreshBlockhash();
   const transaction = assembleArcadePayTx(
@@ -153,18 +215,27 @@ export async function buildArcadePayTx(opts) {
     blockhash,
     lastValidBlockHeight
   );
+  console.warn(
+    "MWA_PAY",
+    "build_ok",
+    prepared.needAtaCreate ? "ata_create" : "ata_exists",
+    blockhash.slice(0, 8)
+  );
   return { prepared, transaction, blockhash, lastValidBlockHeight };
 }
 
-/** Broadcast a signed tx (fallback when wallet signs but does not send). */
+/** Broadcast a signed tx (after wallet.signTransactions). */
 export async function sendSignedArcadePayTx(signedTx) {
   const connection = getConnection();
   const raw =
     typeof signedTx.serialize === "function"
       ? signedTx.serialize()
       : signedTx;
-  return connection.sendRawTransaction(raw, {
-    skipPreflight: false,
-    preflightCommitment: "confirmed",
-  });
+  return withRpcTimeout(
+    connection.sendRawTransaction(raw, {
+      skipPreflight: false,
+      preflightCommitment: "confirmed",
+    }),
+    "broadcast"
+  );
 }
