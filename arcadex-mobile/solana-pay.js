@@ -1,5 +1,6 @@
 /**
  * Build mainnet SPL fee transfers for ArcadeX (native MWA sign & send).
+ * Plain JS only — Metro/Hermes cannot parse TypeScript in .js files.
  */
 
 import {
@@ -14,6 +15,7 @@ import {
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { Buffer } from "buffer";
 import {
   SOLANA_FEE_ATOMS,
   SOLANA_STABLE_DECIMALS,
@@ -21,19 +23,16 @@ import {
   getSolanaRpcUrl,
   solanaMemoForPurpose,
   solanaMintForToken,
-  type SolanaPayPurpose,
-  type SolanaPaymentToken,
 } from "./solana-pay-config";
 
 const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
 
-export async function buildArcadePayTransaction(opts: {
-  payerBase58: string;
-  purpose: SolanaPayPurpose;
-  token: SolanaPaymentToken;
-}) {
+/**
+ * @param {{ payerBase58: string, purpose: string, token: string }} opts
+ */
+export async function buildArcadePayTransaction(opts) {
   const connection = new Connection(getSolanaRpcUrl(), "confirmed");
   const payer = new PublicKey(opts.payerBase58);
   const treasury = new PublicKey(SOLANA_TREASURY);
@@ -52,7 +51,6 @@ export async function buildArcadePayTransaction(opts: {
 
   const ixes = [];
 
-  // Ensure treasury ATA exists (user pays rent once if missing).
   ixes.push(
     createAssociatedTokenAccountIdempotentInstruction(
       payer,

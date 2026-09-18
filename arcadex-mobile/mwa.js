@@ -2,7 +2,6 @@ import { PublicKey } from "@solana/web3.js";
 import { transact } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
 import { Buffer } from "buffer";
 import { APP_IDENTITY, SOLANA_CHAIN } from "./config";
-import { buildArcadePayTransaction } from "./solana-pay";
 
 const AUTH_TOKEN_KEY = "arcadex_mwa_auth_token";
 
@@ -78,8 +77,9 @@ export async function connectMwaWallet(AsyncStorage) {
   return connectAndSignInMwaWallet(AsyncStorage);
 }
 
-/** Paid SPL USDC/USDT fee → treasury + memo via MWA. */
+/** Paid SPL USDC/USDT fee → treasury + memo via MWA. Lazy-loads solana-pay. */
 export async function payArcadeFeeMwa(AsyncStorage, { purpose, token }) {
+  const { buildArcadePayTransaction } = await import("./solana-pay");
   const storedAuthToken = AsyncStorage
     ? await AsyncStorage.getItem(AUTH_TOKEN_KEY)
     : null;
