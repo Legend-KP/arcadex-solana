@@ -10,7 +10,21 @@ import { playSuccessSfx, playTouchSfx, preloadSfx } from "@/lib/sfx";
 import { formatSparkCountdown } from "@/lib/spark";
 
 function paymentErrorMessage(err: unknown): string {
-  if (err instanceof Error && err.message.trim()) return err.message;
+  const raw =
+    err instanceof Error
+      ? `${err.name} ${err.message}`
+      : typeof err === "string"
+        ? err
+        : String(err ?? "");
+  const msg = raw.toLowerCase();
+  if (
+    msg.includes("cancellation") ||
+    msg.includes("canceled") ||
+    msg.includes("cancelled")
+  ) {
+    return "Wallet request was cancelled. Tap again and approve in Phantom.";
+  }
+  if (err instanceof Error && err.message.trim()) return err.message.trim();
   return "Payment failed.";
 }
 

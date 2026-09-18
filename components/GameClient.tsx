@@ -258,14 +258,18 @@ export default function GameClient({
     }
 
     const error = result.error?.trim();
+    const lower = (error || "").toLowerCase();
     if (
       !error ||
-      error.toLowerCase().includes("user rejected") ||
-      error.toLowerCase().includes("denied")
+      lower.includes("user rejected") ||
+      lower.includes("denied") ||
+      lower.includes("cancellation") ||
+      lower.includes("canceled") ||
+      lower.includes("cancelled")
     ) {
       setSubmitToast({
         phase: "error",
-        message: "Payment cancelled.",
+        message: "Wallet request was cancelled. Tap again and approve in Phantom.",
       });
       return;
     }

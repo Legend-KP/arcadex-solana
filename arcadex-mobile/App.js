@@ -59,6 +59,7 @@ function ArcadeShell() {
   const uri = getArcadexWebUrl();
   const webRef = useRef(null);
   const authTokenRef = useRef(null);
+  const busyRef = useRef(false);
   const [bootError, setBootError] = useState("");
 
   const reply = useCallback(async (payload) => {
@@ -90,11 +91,34 @@ function ArcadeShell() {
       if (!msg || msg.source !== "arcadex-web") return;
 
       const requestId = msg.requestId ?? null;
+      const isWalletOp =
+        msg.type === "MWA_CONNECT" ||
+        msg.type === "MWA_SIGN_IN" ||
+        msg.type === "MWA_PAY" ||
+        msg.type === "MWA_DISCONNECT";
+
+      if (isWalletOp && busyRef.current) {
+        await reply({
+          source: "arcadex-native",
+          type:
+            msg.type === "MWA_PAY"
+              ? "MWA_PAY_RESULT"
+              : msg.type === "MWA_DISCONNECT"
+                ? "MWA_DISCONNECT_RESULT"
+                : "MWA_CONNECT_RESULT",
+          requestId,
+          ok: false,
+          error:
+            "Another wallet request is already open. Finish or close it, then try again.",
+        });
+        return;
+      }
 
       try {
         const mwa = await import("./mwa");
 
         if (msg.type === "MWA_CONNECT" || msg.type === "MWA_SIGN_IN") {
+          busyRef.current = true;
           try {
             const signedIn = await mwa.connectAndSignInMwaWallet(storage);
             await reply({
@@ -119,11 +143,14 @@ function ArcadeShell() {
                   ? err.message
                   : "Wallet connect / sign-in failed.",
             });
+          } finally {
+            busyRef.current = false;
           }
           return;
         }
 
         if (msg.type === "MWA_PAY") {
+          busyRef.current = true;
           try {
             const purpose = msg.purpose;
             const token = msg.token === "USDT" ? "USDT" : "USDC";
@@ -159,11 +186,14 @@ function ArcadeShell() {
               ok: false,
               error: err instanceof Error ? err.message : "Payment failed.",
             });
+          } finally {
+            busyRef.current = false;
           }
           return;
         }
 
         if (msg.type === "MWA_DISCONNECT") {
+          busyRef.current = true;
           try {
             await mwa.disconnectMwaWallet(storage);
             await reply({
@@ -179,11 +209,16 @@ function ArcadeShell() {
               requestId,
               ok: false,
               error:
-                err instanceof Error ? err.message : "Wallet disconnect failed.",
+                err instanceof Error
+                  ? err.message
+                  : "Wallet disconnect failed.",
             });
+          } finally {
+            busyRef.current = false;
           }
         }
       } catch (err) {
+        busyRef.current = false;
         setBootError(
           err instanceof Error ? err.message : "Wallet bridge failed to load."
         );
