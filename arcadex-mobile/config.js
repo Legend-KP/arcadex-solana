@@ -10,8 +10,8 @@ export const SOLANA_CHAIN = "solana:mainnet";
 export const APP_IDENTITY = {
   name: "ArcadeX",
   uri: "https://arcadexseeker.trenchverse.com",
-  // Absolute icon is more reliable for Phantom / Seed Vault association UI.
-  icon: "https://arcadexseeker.trenchverse.com/favicon.ico",
+  // MWA: must be relative to `uri` (absolute https:// URLs cause -32602).
+  icon: "logo.png",
 };
 
 export function getArcadexWebUrl() {
