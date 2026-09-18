@@ -12,20 +12,22 @@ import {
   buildNativeReplyScript,
   connectAndSignInMwaWallet,
   disconnectMwaWallet,
+  payArcadeFeeMwa,
 } from "./mwa";
 
-/**
- * WebView + MWA bridge.
- * Step 4: connect · Step 5: free sign-in message (same wallet session).
- */
+const PAY_PURPOSES = new Set([
+  "spark_refill",
+  "infinite_spark",
+  "score_submit",
+]);
+
 export default function App() {
   const uri = getArcadexWebUrl();
   const webRef = useRef(null);
   const authTokenRef = useRef(null);
 
   const reply = useCallback((payload) => {
-    const script = buildNativeReplyScript(payload);
-    webRef.current?.injectJavaScript(script);
+    webRef.current?.injectJavaScript(buildNativeReplyScript(payload));
   }, []);
 
   const storage = useMemo(
@@ -82,6 +84,37 @@ export default function App() {
         return;
       }
 
+      if (msg.type === "MWA_PAY") {
+        try {
+          const purpose = msg.purpose;
+          const token = msg.token === "USDT" ? "USDT" : "USDC";
+          if (!PAY_PURPOSES.has(purpose)) {
+            throw new Error("Unsupported payment purpose.");
+          }
+          const paid = await payArcadeFeeMwa(storage, { purpose, token });
+          reply({
+            source: "arcadex-native",
+            type: "MWA_PAY_RESULT",
+            requestId,
+            ok: true,
+            purpose: paid.purpose,
+            token: paid.token,
+            signature: paid.signature,
+            address: paid.address,
+          });
+        } catch (err) {
+          reply({
+            source: "arcadex-native",
+            type: "MWA_PAY_RESULT",
+            requestId,
+            ok: false,
+            error:
+              err instanceof Error ? err.message : "Payment failed.",
+          });
+        }
+        return;
+      }
+
       if (msg.type === "MWA_DISCONNECT") {
         try {
           await disconnectMwaWallet(storage);
@@ -128,11 +161,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  webview: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: "#000" },
+  webview: { flex: 1 },
 });

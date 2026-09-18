@@ -1,7 +1,9 @@
 /**
  * Bridge between ArcadeX web (Cloudflare) and the Expo native shell.
- * Step 4: connect · Step 5: free sign-in message (same MWA session).
+ * Connect + sign-in + paid SPL fee transfers (USDC/USDT).
  */
+
+import type { SolanaPayPurpose, SolanaPaymentToken } from "@/lib/solana-config";
 
 export type NativeBridgeMessage =
   | {
@@ -28,6 +30,23 @@ export type NativeBridgeMessage =
       requestId: string | null;
       ok: boolean;
       error?: string;
+    }
+  | {
+      source: "arcadex-native";
+      type: "MWA_PAY_RESULT";
+      requestId: string | null;
+      ok: true;
+      purpose: SolanaPayPurpose;
+      token: SolanaPaymentToken;
+      signature: string;
+      address: string;
+    }
+  | {
+      source: "arcadex-native";
+      type: "MWA_PAY_RESULT";
+      requestId: string | null;
+      ok: false;
+      error: string;
     };
 
 declare global {
@@ -57,7 +76,7 @@ function postToNative(payload: Record<string, unknown>): void {
 function waitForNativeResult<T extends NativeBridgeMessage>(
   type: T["type"],
   requestId: string,
-  timeoutMs = 120_000
+  timeoutMs = 180_000
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
@@ -110,10 +129,6 @@ export interface MwaSignInResult {
   signedIn: boolean;
 }
 
-/**
- * Authorize + sign a free ArcadeX sign-in message in one wallet session.
- * Not a paid on-chain transfer.
- */
 export async function requestMwaConnectAndSignIn(): Promise<MwaSignInResult> {
   const requestId = newRequestId();
   const pending = waitForNativeResult<
@@ -142,7 +157,6 @@ export async function requestMwaConnectAndSignIn(): Promise<MwaSignInResult> {
   };
 }
 
-/** @deprecated Use requestMwaConnectAndSignIn — Step 5 always signs in. */
 export async function requestMwaConnect(): Promise<{
   address: string;
   label?: string | null;
@@ -167,4 +181,38 @@ export async function requestMwaDisconnect(): Promise<void> {
   if (!result.ok) {
     throw new Error(result.error || "Wallet disconnect failed.");
   }
+}
+
+export async function requestMwaPay(opts: {
+  purpose: SolanaPayPurpose;
+  token?: SolanaPaymentToken;
+}): Promise<{
+  signature: string;
+  address: string;
+  purpose: SolanaPayPurpose;
+  token: SolanaPaymentToken;
+}> {
+  const requestId = newRequestId();
+  const pending = waitForNativeResult<
+    Extract<NativeBridgeMessage, { type: "MWA_PAY_RESULT" }>
+  >("MWA_PAY_RESULT", requestId);
+
+  postToNative({
+    source: "arcadex-web",
+    type: "MWA_PAY",
+    requestId,
+    purpose: opts.purpose,
+    token: opts.token ?? "USDC",
+  });
+
+  const result = await pending;
+  if (!result.ok) {
+    throw new Error(result.error || "Payment failed.");
+  }
+  return {
+    signature: result.signature,
+    address: result.address,
+    purpose: result.purpose,
+    token: result.token,
+  };
 }

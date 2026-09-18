@@ -26,6 +26,15 @@ import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 import { resolveWalletOnAppOpen } from "@/lib/walletAuth";
 import { formatChainError } from "@/lib/celo-public-client";
 import { purchaseScoreSubmitOnChain } from "@/lib/score-submit-purchase";
+import { purchaseScoreSubmitOnSolana } from "@/lib/solana-purchases";
+import {
+  isArcadexNativeShell,
+} from "@/lib/arcadex-native-bridge";
+import {
+  getCachedSolanaAddress,
+  hasCachedSolanaSignIn,
+} from "@/lib/solana-address";
+import { getCachedPlayerName } from "@/lib/player-id";
 import {
   clearPendingLeaderboardSubmit,
   getLeaderboardSubmitResult,
@@ -294,7 +303,13 @@ export default function GameClient({
     if (pendingSubmitScore == null || payingSubmit) return;
 
     const score = pendingSubmitScore;
-    if (isGuest || !(walletAddress || profile?.walletAddress)) {
+    const solanaReady =
+      isArcadexNativeShell() &&
+      Boolean(getCachedSolanaAddress()) &&
+      hasCachedSolanaSignIn();
+    const evmWallet = walletAddress || profile?.walletAddress || "";
+
+    if (!solanaReady && (isGuest || !evmWallet)) {
       setPendingSubmitScore(null);
       deliverLeaderboardSubmitResult({
         success: false,
@@ -303,14 +318,12 @@ export default function GameClient({
       });
       setSubmitToast({
         phase: "error",
-        message: "Wallet coming soon — paid score submit unlocks with Solana wallet.",
+        message:
+          "Connect & sign in with Solana to submit a paid contest score.",
       });
       return;
     }
 
-    const wallet = walletAddress || profile?.walletAddress || "";
-
-    // Release Unity pointer lock so MiniPay can show the wallet sheet.
     try {
       document.exitPointerLock?.();
     } catch {
@@ -321,23 +334,62 @@ export default function GameClient({
     setPendingSubmitScore(null);
     setSubmitToast({
       phase: "submitting",
-      message: "Submitting score… Confirm the payment in MiniPay.",
+      message: solanaReady
+        ? "Submitting score… Confirm the USDC/USDT payment in your wallet."
+        : "Submitting score… Confirm the payment in MiniPay.",
     });
     setPendingLeaderboardSubmit(game.id, score);
 
     try {
-      const { txHash } = await purchaseScoreSubmitOnChain();
-      const result = await submitScoreToLeaderboard(game.id, {
-        walletAddress: wallet,
-        txHash,
-        score,
-      });
-      clearPendingLeaderboardSubmit(game.id);
-      deliverLeaderboardSubmitResult({
-        success: true,
-        highScore: result.highScore,
-        leaderboardScore: result.leaderboardScore,
-      });
+      if (solanaReady) {
+        const paid = await purchaseScoreSubmitOnSolana("USDC");
+        const nameForBoard =
+          playerName ||
+          profile?.name ||
+          getCachedPlayerName()?.trim() ||
+          "";
+        const res = await fetch(
+          `/api/games/${game.id}/leaderboard/submit-solana`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              walletAddress: paid.address,
+              signature: paid.signature,
+              score,
+              playerName: nameForBoard,
+            }),
+            cache: "no-store",
+          }
+        );
+        const data = (await res.json()) as {
+          highScore?: number;
+          leaderboardScore?: number;
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(data.error || "Could not submit score.");
+        }
+        clearPendingLeaderboardSubmit(game.id);
+        deliverLeaderboardSubmitResult({
+          success: true,
+          highScore: data.highScore ?? score,
+          leaderboardScore: data.leaderboardScore ?? score,
+        });
+      } else {
+        const { txHash } = await purchaseScoreSubmitOnChain();
+        const result = await submitScoreToLeaderboard(game.id, {
+          walletAddress: evmWallet,
+          txHash,
+          score,
+        });
+        clearPendingLeaderboardSubmit(game.id);
+        deliverLeaderboardSubmitResult({
+          success: true,
+          highScore: result.highScore,
+          leaderboardScore: result.leaderboardScore,
+        });
+      }
     } catch (err) {
       clearPendingLeaderboardSubmit(game.id);
       deliverLeaderboardSubmitResult({
@@ -354,6 +406,8 @@ export default function GameClient({
     isGuest,
     walletAddress,
     profile?.walletAddress,
+    profile?.name,
+    playerName,
     game.id,
     deliverLeaderboardSubmitResult,
   ]);
@@ -658,8 +712,12 @@ export default function GameClient({
           const { score } = (msg.payload ?? {}) as { score?: number };
           const wallet =
             walletAddress || profile?.walletAddress || "";
-          if (isGuest || !wallet) {
-            notifyFailure("Wallet coming soon");
+          const solanaReady =
+            isArcadexNativeShell() &&
+            Boolean(getCachedSolanaAddress()) &&
+            hasCachedSolanaSignIn();
+          if (!solanaReady && (isGuest || !wallet)) {
+            notifyFailure("Connect & sign in with Solana to submit.");
             break;
           }
           if (typeof score !== "number" || score <= 0) {
@@ -878,11 +936,15 @@ export default function GameClient({
                 {pendingSubmitScore.toLocaleString()}
               </p>
               <p className="lb-submit-confirm__hint">
-                {isGuest
-                  ? "Wallet coming soon — paid contest submit unlocks with Solana wallet connect."
-                  : contestLive
-                    ? "Submit this score to appear on the contest leaderboard. Pay $0.05 in USDT or USDC. MiniPay will ask you to confirm once."
-                    : "Pay $0.05 in USDT or USDC. MiniPay will ask you to confirm once."}
+                {isArcadexNativeShell() && getCachedSolanaAddress()
+                  ? contestLive
+                    ? "Submit this score to the contest leaderboard. Pay $0.05 in USDC or USDT on Solana."
+                    : "Pay $0.05 in USDC or USDT on Solana to submit."
+                  : isGuest
+                    ? "Connect & sign in with Solana to unlock paid contest submit."
+                    : contestLive
+                      ? "Submit this score to appear on the contest leaderboard. Pay $0.05 in USDT or USDC. MiniPay will ask you to confirm once."
+                      : "Pay $0.05 in USDT or USDC. MiniPay will ask you to confirm once."}
               </p>
               <button
                 type="button"
@@ -892,13 +954,21 @@ export default function GameClient({
                     : " lb-submit-confirm__pay--offline"
                 }`}
                 onClick={() => void confirmPendingSubmit()}
-                disabled={payingSubmit || isGuest}
+                disabled={
+                  payingSubmit ||
+                  (isGuest &&
+                    !(
+                      isArcadexNativeShell() && getCachedSolanaAddress()
+                    ))
+                }
               >
-                {isGuest
-                  ? "Wallet coming soon"
-                  : payingSubmit
-                    ? "Opening wallet…"
-                    : "Pay & Submit"}
+                {payingSubmit
+                  ? "Opening wallet…"
+                  : isArcadexNativeShell() && getCachedSolanaAddress()
+                    ? "Pay & Submit"
+                    : isGuest
+                      ? "Connect wallet first"
+                      : "Pay & Submit"}
               </button>
               <p
                 className={`lb-submit-confirm__contest-status${

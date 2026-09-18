@@ -2,6 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 import { transact } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
 import { Buffer } from "buffer";
 import { APP_IDENTITY, SOLANA_CHAIN } from "./config";
+import { buildArcadePayTransaction } from "./solana-pay";
 
 const AUTH_TOKEN_KEY = "arcadex_mwa_auth_token";
 
@@ -9,9 +10,6 @@ function toBase64UrlJson(value) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
 }
 
-/**
- * Convert MWA account address (base64 pubkey bytes) → base58 Solana address.
- */
 export function mwaAddressToBase58(address) {
   const bytes =
     typeof address === "string"
@@ -29,10 +27,6 @@ function buildSignInMessage(address) {
   ].join("\n");
 }
 
-/**
- * Step 4+5: authorize + free sign-in message in one MWA session.
- * Not a paid SOL transfer — ownership proof only (no gas).
- */
 export async function connectAndSignInMwaWallet(AsyncStorage) {
   const storedAuthToken = AsyncStorage
     ? await AsyncStorage.getItem(AUTH_TOKEN_KEY)
@@ -80,9 +74,55 @@ export async function connectAndSignInMwaWallet(AsyncStorage) {
   return result;
 }
 
-/** @deprecated Prefer connectAndSignInMwaWallet for Step 5. */
 export async function connectMwaWallet(AsyncStorage) {
   return connectAndSignInMwaWallet(AsyncStorage);
+}
+
+/** Paid SPL USDC/USDT fee → treasury + memo via MWA. */
+export async function payArcadeFeeMwa(AsyncStorage, { purpose, token }) {
+  const storedAuthToken = AsyncStorage
+    ? await AsyncStorage.getItem(AUTH_TOKEN_KEY)
+    : null;
+
+  return transact(async (wallet) => {
+    const authorizationResult = await wallet.authorize({
+      chain: SOLANA_CHAIN,
+      identity: APP_IDENTITY,
+      ...(storedAuthToken ? { auth_token: storedAuthToken } : {}),
+    });
+
+    if (AsyncStorage && authorizationResult.auth_token) {
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, authorizationResult.auth_token);
+    }
+
+    const account = authorizationResult.accounts?.[0];
+    if (!account?.address) {
+      throw new Error("Wallet authorized but returned no account.");
+    }
+
+    const address = mwaAddressToBase58(account.address);
+    const { transaction } = await buildArcadePayTransaction({
+      payerBase58: address,
+      purpose,
+      token,
+    });
+
+    const signatures = await wallet.signAndSendTransactions({
+      transactions: [transaction],
+    });
+
+    const signature = signatures?.[0];
+    if (!signature) {
+      throw new Error("Wallet did not return a payment signature.");
+    }
+
+    return {
+      address,
+      purpose,
+      token,
+      signature: typeof signature === "string" ? signature : String(signature),
+    };
+  });
 }
 
 export async function disconnectMwaWallet(AsyncStorage) {
@@ -96,7 +136,7 @@ export async function disconnectMwaWallet(AsyncStorage) {
         await wallet.deauthorize({ auth_token: storedAuthToken });
       });
     } catch {
-      // Best-effort — still clear local token.
+      // Best-effort
     }
   }
 
@@ -105,7 +145,6 @@ export async function disconnectMwaWallet(AsyncStorage) {
   }
 }
 
-/** Build injectJavaScript snippet that delivers a bridge event to the web app. */
 export function buildNativeReplyScript(payload) {
   const b64 = toBase64UrlJson(payload);
   return `

@@ -16,12 +16,13 @@ export default function SparkBatteryBar() {
   const { walletAddress, isGuest } = usePlayerProfile();
   const [solanaAddress, setSolanaAddress] = useState<string | null>(null);
   const [nativeShell, setNativeShell] = useState(false);
-  // Payments still MiniPay/Celo for now — Solana connect is Step 4 only.
-  const walletReady = Boolean(walletAddress) && !isGuest;
+  const walletReady =
+    (Boolean(walletAddress) && !isGuest) ||
+    (nativeShell && Boolean(solanaAddress));
   const shopNote = nativeShell
     ? solanaAddress
-      ? "Wallet signed in — Spark purchases unlock in the Solana payments step."
-      : "Connect & sign in (welcome popup) — purchases unlock next."
+      ? "Pay with USDC or USDT on Solana mainnet. Fees go to the ArcadeX treasury."
+      : "Connect & sign in (welcome popup) to unlock Spark purchases."
     : "Wallet coming soon — purchases unlock when Solana wallet connect ships.";
 
   useEffect(() => {

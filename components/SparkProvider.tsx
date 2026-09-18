@@ -26,11 +26,28 @@ import {
 import { writeGuestSparkStateJson } from "@/lib/player-id";
 import { purchaseInfiniteSparkOnChain } from "@/lib/infinite-spark-purchase";
 import { purchaseSparkRefillOnChain } from "@/lib/spark-refill-purchase";
+import {
+  purchaseInfiniteSparkOnSolana,
+  purchaseSparkRefillOnSolana,
+} from "@/lib/solana-purchases";
+import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
+import {
+  getCachedSolanaAddress,
+  hasCachedSolanaSignIn,
+} from "@/lib/solana-address";
 import { SparkSnapshot, StoredSparkState } from "@/types";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 
 const ACTIVATE_RETRY_DELAYS_MS = [0, 800, 2000, 4000];
 export const WALLET_COMING_SOON = "Wallet coming soon";
+
+function canPayWithSolana(): boolean {
+  return (
+    isArcadexNativeShell() &&
+    Boolean(getCachedSolanaAddress()) &&
+    hasCachedSolanaSignIn()
+  );
+}
 
 async function activateWithRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
@@ -106,6 +123,12 @@ export default function SparkProvider({
   }, [walletAddress]);
 
   const purchaseInfiniteSpark = useCallback(async (): Promise<void> => {
+    if (canPayWithSolana()) {
+      const result = await purchaseInfiniteSparkOnSolana("USDC");
+      setState(coerceSparkState(result.state));
+      return;
+    }
+
     if (!walletAddress || isGuest) {
       throw new Error(WALLET_COMING_SOON);
     }
@@ -118,6 +141,12 @@ export default function SparkProvider({
   }, [walletAddress, isGuest]);
 
   const purchaseSparkRefill = useCallback(async (): Promise<void> => {
+    if (canPayWithSolana()) {
+      const result = await purchaseSparkRefillOnSolana("USDC");
+      setState(coerceSparkState(result.state));
+      return;
+    }
+
     if (!walletAddress || isGuest) {
       throw new Error(WALLET_COMING_SOON);
     }
