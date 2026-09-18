@@ -33,8 +33,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "046b760e-b98f-4f59-a75a-9135a0da8bbd"
+        "projectId": "2efafea1-2c61-4674-adc4-14ee7ddf13e8"
       }
-    }
+    },
+    "owner": "trenchverse"
   }
 }
