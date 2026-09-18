@@ -2,10 +2,11 @@ import "react-native-get-random-values";
 import { Buffer } from "buffer";
 global.Buffer = global.Buffer || Buffer;
 
-import { Component, useCallback, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, Text, View } from "react-native";
 import { WebView } from "react-native-webview";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getArcadexWebUrl } from "./config";
 
 const PAY_PURPOSES = new Set([
@@ -58,7 +59,6 @@ export default function App() {
 function ArcadeShell() {
   const uri = getArcadexWebUrl();
   const webRef = useRef(null);
-  const authTokenRef = useRef(null);
   const busyRef = useRef(false);
   const [bootError, setBootError] = useState("");
 
@@ -66,19 +66,6 @@ function ArcadeShell() {
     const { buildNativeReplyScript } = await import("./mwa");
     webRef.current?.injectJavaScript(buildNativeReplyScript(payload));
   }, []);
-
-  const storage = useMemo(
-    () => ({
-      getItem: async () => authTokenRef.current,
-      setItem: async (_key, value) => {
-        authTokenRef.current = value;
-      },
-      removeItem: async () => {
-        authTokenRef.current = null;
-      },
-    }),
-    []
-  );
 
   const onMessage = useCallback(
     async (event) => {
@@ -120,7 +107,7 @@ function ArcadeShell() {
         if (msg.type === "MWA_CONNECT" || msg.type === "MWA_SIGN_IN") {
           busyRef.current = true;
           try {
-            const signedIn = await mwa.connectAndSignInMwaWallet(storage);
+            const signedIn = await mwa.connectAndSignInMwaWallet(AsyncStorage);
             await reply({
               source: "arcadex-native",
               type: "MWA_CONNECT_RESULT",
@@ -163,7 +150,7 @@ function ArcadeShell() {
                 "Connect & sign in with your Solana wallet first."
               );
             }
-            const paid = await mwa.payArcadeFeeMwa(storage, {
+            const paid = await mwa.payArcadeFeeMwa(AsyncStorage, {
               purpose,
               token,
               payerBase58,
@@ -202,7 +189,7 @@ function ArcadeShell() {
         if (msg.type === "MWA_DISCONNECT") {
           busyRef.current = true;
           try {
-            await mwa.disconnectMwaWallet(storage);
+            await mwa.disconnectMwaWallet(AsyncStorage);
             await reply({
               source: "arcadex-native",
               type: "MWA_DISCONNECT_RESULT",
@@ -231,7 +218,7 @@ function ArcadeShell() {
         );
       }
     },
-    [reply, storage]
+    [reply]
   );
 
   return (

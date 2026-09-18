@@ -94,14 +94,17 @@ export function isUserCancellation(err) {
 function isAuthFailure(err) {
   if (isUserCancellation(err)) return false;
   const msg = errorText(err).toLowerCase();
-  return (
-    msg.includes("authorization") ||
-    msg.includes("authorize") ||
-    msg.includes("auth_token") ||
-    msg.includes("not authorized") ||
-    msg.includes("-32602") ||
-    msg.includes("-1/")
-  );
+  return msg.includes("auth_token") || msg.includes("not authorized") || msg.includes("-32602");
+}
+
+function withTimeout(promise, ms, label) {
+  let t;
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => {
+      t = setTimeout(() => rej(new Error(`Timed out: ${label}`)), ms);
+    }),
+  ]).finally(() => clearTimeout(t));
 }
 
 export function formatMwaError(err, fallback = "Wallet request failed.") {
@@ -253,88 +256,70 @@ export async function payArcadeFeeMwa(AsyncStorage, opts) {
       payerBase58.slice(0, 8)
     );
 
+    let step = "init";
+
     const run = async (authToken) => {
-      const result = await transact(async (wallet) => {
-        console.warn("MWA_PAY", "authorize_start");
-        const authorizationResult = await authorizeWallet(wallet, authToken);
-        console.warn("MWA_PAY", "authorize_ok");
+      const result = await withTimeout(
+        transact(async (wallet) => {
+          step = "authorize";
+          const auth = await authorizeWallet(wallet, authToken);
+          const account = auth.accounts?.[0];
+          if (!account?.address) throw new Error("Wallet returned no account.");
 
-        const account = authorizationResult.accounts?.[0];
-        if (!account?.address) {
-          throw new Error("Wallet authorized but returned no account.");
-        }
+          const address = mwaAddressToBase58(account.address);
+          if (address !== payerBase58) {
+            throw new Error(
+              `Wallet mismatch: signed in ${payerBase58.slice(0, 4)}…, Phantom gave ${address.slice(0, 4)}…`
+            );
+          }
 
-        const address = mwaAddressToBase58(account.address);
-        console.warn("MWA_PAY", "authorized_address", address.slice(0, 8));
-
-        if (address !== payerBase58) {
-          // Do NOT call sign with a mismatched feePayer — Phantom would
-          // close without a usable popup. Surface a clear error instead.
-          throw new Error(
-            `Wallet mismatch. Signed in as ${payerBase58.slice(0, 4)}… but Phantom authorized ${address.slice(0, 4)}…. Sign in again with the same wallet.`
-          );
-        }
-
-        // Prefer signTransactions — Phantom shows the approve sheet more
-        // reliably than signAndSend for some SPL transfers.
-        console.warn("MWA_PAY", "sign_start");
-        const signed = await wallet.signTransactions({
-          transactions: [built.transaction],
-        });
-        console.warn("MWA_PAY", "sign_ok");
-
-        const signedTx = signed?.[0];
-        if (!signedTx) {
-          throw new Error("Wallet did not return a signed payment.");
-        }
-
-        return {
-          address,
-          authToken: authorizationResult.auth_token ?? null,
-          signedTx,
-          purpose: opts.purpose,
-          token: opts.token,
-        };
-      });
+          step = "signAndSend";
+          try {
+            const [sig] = await wallet.signAndSendTransactions({
+              transactions: [built.transaction],
+            });
+            return { address, authToken: auth.auth_token ?? null, signature: String(sig) };
+          } catch (e) {
+            if (isUserCancellation(e)) throw e;
+            console.warn("MWA_PAY", "signAndSend_failed", e?.name, e?.code, e?.message);
+            step = "signTransactions";
+            const [signedTx] = await wallet.signTransactions({
+              transactions: [built.transaction],
+            });
+            if (!signedTx) throw new Error("Wallet did not return a signed payment.");
+            return { address, authToken: auth.auth_token ?? null, signedTx };
+          }
+        }),
+        120_000,
+        "wallet session"
+      );
 
       if (AsyncStorage && result.authToken) {
         await AsyncStorage.setItem(AUTH_TOKEN_KEY, result.authToken);
       }
 
-      console.warn("MWA_PAY", "broadcast_start");
-      try {
-        const signature = await sendSignedArcadePayTx(result.signedTx);
-        console.warn("MWA_PAY", "broadcast_ok", String(signature).slice(0, 12));
-        return {
-          address: result.address,
-          purpose: result.purpose,
-          token: result.token,
-          signature:
-            typeof signature === "string" ? signature : String(signature),
-        };
-      } catch (broadcastErr) {
-        logMwaPayError("broadcast", broadcastErr);
-        throw broadcastErr;
-      }
+      step = "broadcast";
+      const signature =
+        result.signature ?? String(await sendSignedArcadePayTx(result.signedTx));
+      return { address: result.address, purpose: opts.purpose, token: opts.token, signature };
     };
 
     try {
       return await run(storedAuthToken);
     } catch (err) {
       logMwaPayError("session", err);
-      if (isUserCancellation(err)) {
-        throw new Error(formatMwaError(err));
-      }
-      if (storedAuthToken && isAuthFailure(err)) {
+      if (isUserCancellation(err)) throw new Error(formatMwaError(err));
+      // Only retry with a fresh authorize if the failure happened during authorize.
+      if (storedAuthToken && step === "authorize" && isAuthFailure(err)) {
         if (AsyncStorage) await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
         try {
           return await run(null);
         } catch (err2) {
           logMwaPayError("session_retry", err2);
-          throw new Error(formatMwaError(err2, "Payment failed."));
+          throw new Error(`${formatMwaError(err2, "Payment failed.")} [step: ${step}]`);
         }
       }
-      throw new Error(formatMwaError(err, "Payment failed."));
+      throw new Error(`${formatMwaError(err, "Payment failed.")} [step: ${step}]`);
     }
   });
 }

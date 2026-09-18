@@ -14,6 +14,7 @@ import {
   createAssociatedTokenAccountIdempotentInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
+  unpackAccount,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Buffer } from "buffer";
@@ -80,27 +81,26 @@ export async function prepareArcadePay(opts) {
   const sourceAta = getAssociatedTokenAddressSync(mint, payer);
   const destAta = getAssociatedTokenAddressSync(mint, treasury);
 
-  const [sourceInfo, destInfo, solLamports, balance] = await withRpcTimeout(
+  const [sourceInfo, destInfo, solLamports] = await withRpcTimeout(
     Promise.all([
       connection.getAccountInfo(sourceAta),
       connection.getAccountInfo(destAta),
       connection.getBalance(payer),
-      connection.getTokenAccountBalance(sourceAta).catch(() => null),
     ]),
     "prepare"
   );
 
   if (!sourceInfo) {
     throw new Error(
-      `No ${token} token account in this wallet. Fund USDC/USDT on Solana mainnet first.`
+      `No ${token} token account in wallet ${opts.payerBase58.slice(0, 4)}…${opts.payerBase58.slice(-4)}. Fund USDC/USDT on Solana mainnet first.`
     );
   }
 
-  const have = BigInt(balance?.value?.amount ?? "0");
+  const have = unpackAccount(sourceAta, sourceInfo).amount; // bigint
   if (have < amount) {
-    const need = Number(amount) / 10 ** SOLANA_STABLE_DECIMALS;
+    const fmt = (n) => (Number(n) / 10 ** SOLANA_STABLE_DECIMALS).toFixed(2);
     throw new Error(
-      `Insufficient ${token}. Need at least $${need.toFixed(2)} plus a little SOL for fees.`
+      `Insufficient ${token}. Wallet ${opts.payerBase58.slice(0, 4)}…${opts.payerBase58.slice(-4)} has $${fmt(have)}, needs $${fmt(amount)}.`
     );
   }
 
@@ -127,6 +127,7 @@ export async function prepareArcadePay(opts) {
     amount: Number(amount),
     memo: solanaMemoForPurpose(purpose),
     needAtaCreate,
+    tokenProgramIdBase58: TOKEN_PROGRAM_ID.toBase58(),
   };
 }
 
@@ -143,6 +144,9 @@ export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
   const destAta = new PublicKey(prepared.destAtaBase58);
   const treasury = new PublicKey(prepared.treasuryBase58);
   const amount = BigInt(prepared.amount);
+  const tokenProgramId = prepared.tokenProgramIdBase58
+    ? new PublicKey(prepared.tokenProgramIdBase58)
+    : TOKEN_PROGRAM_ID;
 
   const tx = new Transaction();
   tx.feePayer = payer;
@@ -156,7 +160,8 @@ export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
         payer,
         destAta,
         treasury,
-        mint
+        mint,
+        tokenProgramId
       )
     );
   }
@@ -170,7 +175,7 @@ export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
       amount,
       SOLANA_STABLE_DECIMALS,
       [],
-      TOKEN_PROGRAM_ID
+      tokenProgramId
     )
   );
 
