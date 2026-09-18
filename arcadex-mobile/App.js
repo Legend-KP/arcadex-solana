@@ -127,10 +127,20 @@ function ArcadeShell() {
           try {
             const purpose = msg.purpose;
             const token = msg.token === "USDT" ? "USDT" : "USDC";
+            const payerBase58 = msg.address || msg.payerBase58 || "";
             if (!PAY_PURPOSES.has(purpose)) {
               throw new Error("Unsupported payment purpose.");
             }
-            const paid = await mwa.payArcadeFeeMwa(storage, { purpose, token });
+            if (!payerBase58) {
+              throw new Error(
+                "Connect & sign in with your Solana wallet first."
+              );
+            }
+            const paid = await mwa.payArcadeFeeMwa(storage, {
+              purpose,
+              token,
+              payerBase58,
+            });
             await reply({
               source: "arcadex-native",
               type: "MWA_PAY_RESULT",

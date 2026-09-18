@@ -73,7 +73,11 @@ export async function purchaseSparkRefillOnSolana(
     throw new Error("Connect & sign in with your Solana wallet first.");
   }
 
-  const paid = await requestMwaPay({ purpose: "spark_refill", token });
+  const paid = await requestMwaPay({
+    purpose: "spark_refill",
+    token,
+    address: wallet,
+  });
   await confirmSolanaPayment({
     signature: paid.signature,
     walletAddress: paid.address || wallet,
@@ -91,7 +95,11 @@ export async function purchaseInfiniteSparkOnSolana(
     throw new Error("Connect & sign in with your Solana wallet first.");
   }
 
-  const paid = await requestMwaPay({ purpose: "infinite_spark", token });
+  const paid = await requestMwaPay({
+    purpose: "infinite_spark",
+    token,
+    address: wallet,
+  });
   await confirmSolanaPayment({
     signature: paid.signature,
     walletAddress: paid.address || wallet,
@@ -109,7 +117,11 @@ export async function purchaseScoreSubmitOnSolana(
     throw new Error("Connect & sign in with your Solana wallet first.");
   }
 
-  const paid = await requestMwaPay({ purpose: "score_submit", token });
+  const paid = await requestMwaPay({
+    purpose: "score_submit",
+    token,
+    address: wallet,
+  });
   await confirmSolanaPayment({
     signature: paid.signature,
     walletAddress: paid.address || wallet,

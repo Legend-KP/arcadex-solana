@@ -186,6 +186,7 @@ export async function requestMwaDisconnect(): Promise<void> {
 export async function requestMwaPay(opts: {
   purpose: SolanaPayPurpose;
   token?: SolanaPaymentToken;
+  address?: string;
 }): Promise<{
   signature: string;
   address: string;
@@ -203,6 +204,7 @@ export async function requestMwaPay(opts: {
     requestId,
     purpose: opts.purpose,
     token: opts.token ?? "USDC",
+    address: opts.address,
   });
 
   const result = await pending;

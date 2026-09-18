@@ -4,13 +4,14 @@
  */
 export const DEFAULT_ARCADEX_WEB_URL = "https://arcadexseeker.trenchverse.com";
 
-/** MWA chain id — mainnet for Seeker production testing. */
+/** MWA chain id — Solana mainnet (MWA 2.0 identifier). */
 export const SOLANA_CHAIN = "solana:mainnet";
 
 export const APP_IDENTITY = {
   name: "ArcadeX",
   uri: "https://arcadexseeker.trenchverse.com",
-  icon: "favicon.ico",
+  // Absolute icon is more reliable for Phantom / Seed Vault association UI.
+  icon: "https://arcadexseeker.trenchverse.com/favicon.ico",
 };
 
 export function getArcadexWebUrl() {

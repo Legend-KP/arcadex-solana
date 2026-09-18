@@ -4,11 +4,15 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSparks } from "@/components/SparkProvider";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
-import { formatChainError } from "@/lib/celo-public-client";
 import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
 import { getCachedSolanaAddress } from "@/lib/solana-address";
 import { playSuccessSfx, playTouchSfx, preloadSfx } from "@/lib/sfx";
 import { formatSparkCountdown } from "@/lib/spark";
+
+function paymentErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return "Payment failed.";
+}
 
 export default function SparkBatteryBar() {
   const { sparks, loading, purchaseInfiniteSpark, purchaseSparkRefill } =
@@ -99,7 +103,7 @@ export default function SparkBatteryBar() {
         body: "Infinite Spark is active for 24 hours. Play any game freely!",
       });
     } catch (err) {
-      setPurchaseError(formatChainError(err));
+      setPurchaseError(paymentErrorMessage(err));
     } finally {
       setPurchasing(false);
     }
@@ -116,7 +120,7 @@ export default function SparkBatteryBar() {
         body: "Your Spark bar is full. You're ready to play!",
       });
     } catch (err) {
-      setRefillError(formatChainError(err));
+      setRefillError(paymentErrorMessage(err));
     } finally {
       setRefilling(false);
     }

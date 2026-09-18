@@ -1,6 +1,6 @@
 /**
  * Build mainnet SPL fee transfers for ArcadeX (native MWA sign & send).
- * Plain JS only — Metro/Hermes cannot parse TypeScript in .js files.
+ * Prepare heavy RPC work BEFORE opening the wallet session.
  */
 
 import {
@@ -29,15 +29,26 @@ const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
 
+function getConnection() {
+  return new Connection(getSolanaRpcUrl(), "confirmed");
+}
+
 /**
+ * Slow RPC validation — call BEFORE `transact()`.
  * @param {{ payerBase58: string, purpose: string, token: string }} opts
  */
-export async function buildArcadePayTransaction(opts) {
-  const connection = new Connection(getSolanaRpcUrl(), "confirmed");
+export async function prepareArcadePay(opts) {
+  const purpose = opts.purpose;
+  const token = opts.token;
+  if (!SOLANA_FEE_ATOMS[purpose]) {
+    throw new Error(`Unsupported payment purpose: ${purpose}`);
+  }
+
+  const connection = getConnection();
   const payer = new PublicKey(opts.payerBase58);
   const treasury = new PublicKey(SOLANA_TREASURY);
-  const mint = new PublicKey(solanaMintForToken(opts.token));
-  const amount = BigInt(SOLANA_FEE_ATOMS[opts.purpose]);
+  const mint = new PublicKey(solanaMintForToken(token));
+  const amount = BigInt(SOLANA_FEE_ATOMS[purpose]);
 
   const sourceAta = getAssociatedTokenAddressSync(mint, payer);
   const destAta = getAssociatedTokenAddressSync(mint, treasury);
@@ -45,13 +56,53 @@ export async function buildArcadePayTransaction(opts) {
   const sourceInfo = await connection.getAccountInfo(sourceAta);
   if (!sourceInfo) {
     throw new Error(
-      `No ${opts.token} account found in this wallet. Add ${opts.token} on Solana mainnet first.`
+      `No ${token} token account in this wallet. Fund USDC/USDT on Solana mainnet first.`
     );
   }
 
-  const ixes = [];
+  const balance = await connection.getTokenAccountBalance(sourceAta);
+  const have = BigInt(balance?.value?.amount ?? "0");
+  if (have < amount) {
+    const need = Number(amount) / 10 ** SOLANA_STABLE_DECIMALS;
+    throw new Error(
+      `Insufficient ${token}. Need at least $${need.toFixed(2)} plus a little SOL for fees.`
+    );
+  }
 
-  ixes.push(
+  return {
+    payerBase58: opts.payerBase58,
+    purpose,
+    token,
+    mintBase58: mint.toBase58(),
+    sourceAtaBase58: sourceAta.toBase58(),
+    destAtaBase58: destAta.toBase58(),
+    treasuryBase58: treasury.toBase58(),
+    amount: Number(amount),
+    memo: solanaMemoForPurpose(purpose),
+  };
+}
+
+/**
+ * Fast assemble — call INSIDE `transact()` right after authorize.
+ * @param {object} prepared from prepareArcadePay
+ * @param {string} blockhash
+ * @param {number} lastValidBlockHeight
+ */
+export function assembleArcadePayTx(prepared, blockhash, lastValidBlockHeight) {
+  const payer = new PublicKey(prepared.payerBase58);
+  const mint = new PublicKey(prepared.mintBase58);
+  const sourceAta = new PublicKey(prepared.sourceAtaBase58);
+  const destAta = new PublicKey(prepared.destAtaBase58);
+  const treasury = new PublicKey(prepared.treasuryBase58);
+  const amount = BigInt(prepared.amount);
+
+  const tx = new Transaction({
+    feePayer: payer,
+    blockhash,
+    lastValidBlockHeight,
+  });
+
+  tx.add(
     createAssociatedTokenAccountIdempotentInstruction(
       payer,
       destAta,
@@ -60,7 +111,7 @@ export async function buildArcadePayTransaction(opts) {
     )
   );
 
-  ixes.push(
+  tx.add(
     createTransferCheckedInstruction(
       sourceAta,
       mint,
@@ -73,23 +124,18 @@ export async function buildArcadePayTransaction(opts) {
     )
   );
 
-  const memo = solanaMemoForPurpose(opts.purpose);
-  ixes.push(
+  tx.add(
     new TransactionInstruction({
       keys: [{ pubkey: payer, isSigner: true, isWritable: false }],
       programId: MEMO_PROGRAM_ID,
-      data: Buffer.from(memo, "utf8"),
+      data: Buffer.from(prepared.memo, "utf8"),
     })
   );
 
-  const { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash("confirmed");
+  return tx;
+}
 
-  const tx = new Transaction({
-    feePayer: payer,
-    blockhash,
-    lastValidBlockHeight,
-  });
-  tx.add(...ixes);
-  return { transaction: tx, amount: Number(amount), memo };
+export async function fetchFreshBlockhash() {
+  const connection = getConnection();
+  return connection.getLatestBlockhash("confirmed");
 }
