@@ -6,17 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import { fetchHomeShell } from "@/lib/home-client";
 import {
-  fetchSparkData,
   loadGuestSparkData,
   spendGuestSpark,
-  spendSpark,
-  activateInfiniteSpark,
-  activateSparkRefill,
 } from "@/lib/spark-client";
 import {
   computeSparkSnapshot,
@@ -24,8 +18,6 @@ import {
   coerceSparkState,
 } from "@/lib/spark";
 import { writeGuestSparkStateJson } from "@/lib/player-id";
-import { purchaseInfiniteSparkOnChain } from "@/lib/infinite-spark-purchase";
-import { purchaseSparkRefillOnChain } from "@/lib/spark-refill-purchase";
 import {
   purchaseInfiniteSparkOnSolana,
   purchaseSparkRefillOnSolana,
@@ -36,10 +28,9 @@ import {
   hasCachedSolanaSignIn,
 } from "@/lib/solana-address";
 import { SparkSnapshot, StoredSparkState } from "@/types";
-import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 
-const ACTIVATE_RETRY_DELAYS_MS = [0, 800, 2000, 4000];
-export const WALLET_COMING_SOON = "Wallet coming soon";
+export const WALLET_COMING_SOON =
+  "Connect & sign in with your Solana wallet first.";
 
 function canPayWithSolana(): boolean {
   return (
@@ -47,23 +38,6 @@ function canPayWithSolana(): boolean {
     Boolean(getCachedSolanaAddress()) &&
     hasCachedSolanaSignIn()
   );
-}
-
-async function activateWithRetry<T>(fn: () => Promise<T>): Promise<T> {
-  let lastError: unknown;
-  for (let i = 0; i < ACTIVATE_RETRY_DELAYS_MS.length; i++) {
-    if (i > 0) {
-      await new Promise((r) => setTimeout(r, ACTIVATE_RETRY_DELAYS_MS[i]));
-    }
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("Could not credit payment. Please try again.");
 }
 
 interface SparkContextValue {
@@ -90,129 +64,56 @@ export default function SparkProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { walletAddress, isGuest, isReady } = usePlayerProfile();
   const [state, setState] = useState<StoredSparkState>(
     () => loadGuestSparkData().state
   );
   const [loading, setLoading] = useState(true);
-  const sparkWalletRef = useRef("");
 
   const sparks = useMemo(() => computeSparkSnapshot(state), [state]);
 
   const refresh = useCallback(async () => {
-    if (!walletAddress) {
-      const guest = loadGuestSparkData();
-      setState(guest.state);
-      return;
-    }
-
-    const data = await fetchSparkData(walletAddress);
-    setState(coerceSparkState(data.state));
-  }, [walletAddress]);
+    const guest = loadGuestSparkData();
+    setState(guest.state);
+  }, []);
 
   const spendForGame = useCallback(async (): Promise<boolean> => {
-    if (!walletAddress) {
-      const result = spendGuestSpark();
-      setState(coerceSparkState(result.state));
-      return result.spent;
-    }
-
-    const result = await spendSpark(walletAddress);
+    const result = spendGuestSpark();
     setState(coerceSparkState(result.state));
     return result.spent;
-  }, [walletAddress]);
+  }, []);
 
   const purchaseInfiniteSpark = useCallback(async (): Promise<void> => {
-    if (canPayWithSolana()) {
-      const result = await purchaseInfiniteSparkOnSolana("USDC");
-      setState(coerceSparkState(result.state));
-      return;
-    }
-
-    if (!walletAddress || isGuest) {
+    if (!canPayWithSolana()) {
       throw new Error(WALLET_COMING_SOON);
     }
-
-    const { txHash } = await purchaseInfiniteSparkOnChain();
-    const result = await activateWithRetry(() =>
-      activateInfiniteSpark(walletAddress, txHash)
-    );
+    const result = await purchaseInfiniteSparkOnSolana("USDC");
     setState(coerceSparkState(result.state));
-  }, [walletAddress, isGuest]);
+  }, []);
 
   const purchaseSparkRefill = useCallback(async (): Promise<void> => {
-    if (canPayWithSolana()) {
-      const result = await purchaseSparkRefillOnSolana("USDC");
-      setState(coerceSparkState(result.state));
-      return;
-    }
-
-    if (!walletAddress || isGuest) {
+    if (!canPayWithSolana()) {
       throw new Error(WALLET_COMING_SOON);
     }
-
-    const { txHash } = await purchaseSparkRefillOnChain();
-    const result = await activateWithRetry(() =>
-      activateSparkRefill(walletAddress, txHash)
-    );
+    const result = await purchaseSparkRefillOnSolana("USDC");
     setState(coerceSparkState(result.state));
-  }, [walletAddress, isGuest]);
+  }, []);
 
   useEffect(() => {
-    if (!walletAddress) {
-      sparkWalletRef.current = "";
-      setState(loadGuestSparkData().state);
-      setLoading(false);
-      return;
-    }
-
-    if (sparkWalletRef.current !== walletAddress) {
-      sparkWalletRef.current = walletAddress;
-      setLoading(true);
-    }
-
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const home = await fetchHomeShell(walletAddress);
-        if (cancelled) return;
-        if (home.state) {
-          setState(coerceSparkState(home.state));
-          setLoading(false);
-          return;
-        }
-        if (!isReady) return;
-
-        const data = await fetchSparkData(walletAddress);
-        if (!cancelled) setState(coerceSparkState(data.state));
-      } catch {
-        if (!cancelled) setState(loadGuestSparkData().state);
-      } finally {
-        if (!cancelled && isReady) setLoading(false);
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [walletAddress, isReady]);
+    setState(loadGuestSparkData().state);
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    // Tick regen for wallet and guest local Sparks.
     const id = window.setInterval(() => {
       setState((prev) => {
         const next = normalizeSparkState(prev);
-        if (!walletAddress) {
-          writeGuestSparkStateJson(JSON.stringify(next));
-        }
+        writeGuestSparkStateJson(JSON.stringify(next));
         return next;
       });
     }, 1000);
 
     return () => window.clearInterval(id);
-  }, [walletAddress]);
+  }, []);
 
   const value = useMemo(
     () => ({

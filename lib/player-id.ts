@@ -17,8 +17,8 @@ export function clearInvalidCachedWallet(): void {
 }
 
 /**
- * Legacy cleanup kept for call sites. Guest UUIDs are valid again for
- * Solana Mobile / non-MiniPay play — do not wipe non-wallet player ids.
+ * Legacy cleanup kept for call sites. Guest UUIDs are valid for
+ * Solana Mobile / Seeker play — do not wipe non-wallet player ids.
  */
 export function clearStaleGuestId(): void {
   // no-op: guest ids are intentional for offline / APK WebView play
@@ -33,7 +33,7 @@ function createGuestUuid(): string {
     .slice(2, 10)}`;
 }
 
-/** Local guest id for first-time / non-MiniPay users. */
+/** Local guest id for first-time / unsigned-in users. */
 export function getOrCreateGuestId(): string {
   if (typeof window === "undefined") return "";
   const existing = localStorage.getItem(PLAYER_ID_KEY);

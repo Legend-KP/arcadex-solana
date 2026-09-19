@@ -30,14 +30,14 @@
 	 */
 	"env": {
 		"preview": {
-			"name": "arcadex-celo-preview",
+			"name": "arcadex-solana-preview",
 			"vars": {
 				"PLAYER_DATA_BACKEND": "d1"
 			},
 			"services": [
 				{
 					"binding": "WORKER_SELF_REFERENCE",
-					"service": "arcadex-celo-preview"
+					"service": "arcadex-solana-preview"
 				}
 			],
 			"kv_namespaces": [
@@ -49,22 +49,22 @@
 			"d1_databases": [
 				{
 					"binding": "DB",
-					"database_name": "arcadex-celo-preview",
+					"database_name": "arcadex-solana-preview",
 					"database_id": "81f8cd4f-6927-4561-861b-e5aa12eba7a6",
 					"migrations_dir": "migrations",
-					"preview_database_id": "arcadex-celo-preview-local"
+					"preview_database_id": "arcadex-solana-preview-local"
 				}
 			]
 		},
 		"production": {
-			"name": "arcadex-celo",
+			"name": "arcadex-solana",
 			"vars": {
 				"PLAYER_DATA_BACKEND": "d1"
 			},
 			"services": [
 				{
 					"binding": "WORKER_SELF_REFERENCE",
-					"service": "arcadex-celo"
+					"service": "arcadex-solana"
 				}
 			],
 			"kv_namespaces": [
@@ -76,7 +76,7 @@
 			"d1_databases": [
 				{
 					"binding": "DB",
-					"database_name": "arcadex-celo-prod",
+					"database_name": "arcadex-solana-prod",
 					"database_id": "71aee228-0f98-412f-a5eb-6119c39cb5c3",
 					"migrations_dir": "migrations"
 				}

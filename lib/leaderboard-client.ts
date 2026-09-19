@@ -75,32 +75,3 @@ export async function submitScore(
   return data.personalBest ?? entry.score;
 }
 
-export async function submitScoreToLeaderboard(
-  gameId: string,
-  opts: { walletAddress: string; txHash: string; score: number }
-): Promise<{
-  highScore: number;
-  leaderboardScore: number;
-}> {
-  const res = await fetch(`/api/games/${gameId}/leaderboard/submit`, {
-    method: "POST",
-    headers: walletAuthHeaders(),
-    body: JSON.stringify(opts),
-  });
-
-  const data = (await res.json()) as {
-    highScore?: number;
-    leaderboardScore?: number;
-    error?: string;
-    code?: string;
-  };
-
-  if (!res.ok) {
-    throw new Error(data.error ?? "Could not submit score to leaderboard.");
-  }
-
-  return {
-    highScore: data.highScore ?? 0,
-    leaderboardScore: data.leaderboardScore ?? 0,
-  };
-}

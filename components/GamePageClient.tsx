@@ -16,17 +16,11 @@ import {
   loadPrimaryGameMenuImage,
   preloadGameMenuAssets,
 } from "@/lib/game-assets";
-import { formatChainError } from "@/lib/celo-public-client";
-import {
-  isArcadeXTxHubConfigured,
-  playPurpose,
-  signInOnChain,
-} from "@/lib/arcadex-tx-hub";
 
 export default function GamePageClient() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { walletAddress, isGuest, playerId } = usePlayerProfile();
+  const { walletAddress, playerId } = usePlayerProfile();
   const { sparks, spendForGame } = useSparks();
   const [game, setGame] = useState<Game | null>(null);
   const [menuImageSrc, setMenuImageSrc] = useState<string | null>(null);
@@ -132,16 +126,11 @@ export default function GamePageClient() {
 
     setStarting(true);
     try {
-      // On-chain Start Game is MiniPay-only — skip for guests.
-      if (!isGuest && isArcadeXTxHubConfigured() && game?.id) {
-        await signInOnChain(playPurpose(game.id));
-      }
       await spendForGame();
       setStarted(true);
     } catch (err) {
       setSparkError(
-        formatChainError(err) ||
-          (err instanceof Error ? err.message : "Could not start game.")
+        err instanceof Error ? err.message : "Could not start game."
       );
     } finally {
       setStarting(false);
@@ -149,11 +138,9 @@ export default function GamePageClient() {
   }, [
     playerId,
     walletAddress,
-    isGuest,
     sparks.hasInfinite,
     sparks.available,
     spendForGame,
-    game?.id,
   ]);
 
   if (loading || (game && gameIsLive(game) && !menuReady && !started)) {

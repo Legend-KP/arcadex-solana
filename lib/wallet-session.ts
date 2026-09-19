@@ -3,8 +3,6 @@ import {
   assertWalletSessionSecretConfigured,
 } from "@/lib/required-secrets";
 import { SignJWT, jwtVerify } from "jose";
-import { verifyMessage } from "viem";
-import { parseAuthChallengeMessage } from "@/lib/wallet-auth-message";
 import { isWalletAddress, normalizeWalletAddress } from "@/lib/wallet-address";
 
 const SESSION_TTL_SEC = 24 * 60 * 60;
@@ -117,24 +115,3 @@ export async function requireWalletAuth(
   return { ok: true, wallet: sessionWallet };
 }
 
-export async function verifyWalletSignature(
-  walletAddress: string,
-  message: string,
-  signature: string
-): Promise<boolean> {
-  const parsed = parseAuthChallengeMessage(message);
-  if (!parsed) return false;
-
-  const wallet = normalizeWalletAddress(walletAddress);
-  if (parsed.wallet !== wallet) return false;
-
-  try {
-    return await verifyMessage({
-      address: wallet as `0x${string}`,
-      message,
-      signature: signature as `0x${string}`,
-    });
-  } catch {
-    return false;
-  }
-}

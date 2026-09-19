@@ -1,5 +1,5 @@
 /**
- * Solana address helpers (base58 pubkeys). Do not use viem/EVM isAddress here.
+ * Solana address helpers (base58 pubkeys).
  */
 
 const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]+$/;

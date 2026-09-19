@@ -1,8 +1,6 @@
 import { PlayerProfile } from "@/types";
 import { encodeUserId } from "@/lib/wallet-address";
 import { setCachedPlayerName } from "@/lib/player-id";
-import { isArcadeXRewardsConfigured } from "@/lib/arcadex-rewards";
-import { refreshSessionFromCheckIn } from "@/lib/streak-client";
 import { walletAuthHeaders } from "@/lib/wallet-session-client";
 
 export async function fetchPlayerProfile(
@@ -57,27 +55,13 @@ export async function savePlayerProfile(
 export async function bootstrapPlayerProfile(
   walletAddress: string
 ): Promise<PlayerProfile> {
-  async function once() {
-    const res = await fetch("/api/bootstrap", {
-      method: "POST",
-      headers: walletAuthHeaders(),
-      body: JSON.stringify({ walletAddress }),
-    });
+  const res = await fetch("/api/bootstrap", {
+    method: "POST",
+    headers: walletAuthHeaders(),
+    body: JSON.stringify({ walletAddress }),
+  });
 
-    const data = (await res.json()) as { user?: PlayerProfile; error?: string };
-    return { res, data };
-  }
-
-  let { res, data } = await once();
-
-  if (!res.ok && res.status === 401 && isArcadeXRewardsConfigured()) {
-    try {
-      await refreshSessionFromCheckIn(walletAddress);
-      ({ res, data } = await once());
-    } catch {
-      // Keep original bootstrap error
-    }
-  }
+  const data = (await res.json()) as { user?: PlayerProfile; error?: string };
 
   if (!res.ok || !data.user) {
     throw new Error(data.error ?? "Could not bootstrap player profile.");

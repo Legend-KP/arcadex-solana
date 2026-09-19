@@ -41,7 +41,7 @@ export default function SparkBatteryBar() {
     ? solanaAddress
       ? "Pay with USDC or USDT on Solana mainnet. Fees go to the ArcadeX treasury."
       : "Connect & sign in (welcome popup) to unlock Spark purchases."
-    : "Wallet coming soon — purchases unlock when Solana wallet connect ships.";
+    : "Open ArcadeX on Solana Seeker to connect a wallet and buy Sparks.";
 
   useEffect(() => {
     setNativeShell(isArcadexNativeShell());

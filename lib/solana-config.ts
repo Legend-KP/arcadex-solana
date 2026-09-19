@@ -1,6 +1,6 @@
 /**
  * Solana mainnet payment config for ArcadeX Seeker.
- * Fees mirror Celo product pricing (6-decimal USDC/USDT).
+ * Fees use 6-decimal USDC/USDT ($0.05 / $0.10 / $0.05).
  */
 
 export const SOLANA_CLUSTER = "mainnet-beta" as const;

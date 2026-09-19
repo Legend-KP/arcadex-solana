@@ -60,7 +60,7 @@ export function playTouchSfx() {
   }
 }
 
-/** Only for confirmed Spark Refill / Infinite Spark / daily streak-shuffle txs. */
+/** Confirmed Spark Refill / Infinite Spark payments. */
 export function playSuccessSfx() {
   const el = getAudio("success");
   if (!el) return;

@@ -1,16 +1,15 @@
-import { getAddress, isAddress } from "viem";
+import { isSolanaAddress } from "@/lib/solana-address";
 
 export function isWalletAddress(value: string | null | undefined): boolean {
-  if (!value?.trim()) return false;
-  return isAddress(value.trim());
+  return isSolanaAddress(value);
 }
 
 export function normalizeWalletAddress(address: string): string {
   const trimmed = address.trim();
-  if (!isAddress(trimmed)) {
+  if (!isSolanaAddress(trimmed)) {
     throw new Error("Invalid wallet address");
   }
-  return getAddress(trimmed);
+  return trimmed;
 }
 
 export function tryNormalizeWalletAddress(

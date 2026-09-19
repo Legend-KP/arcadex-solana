@@ -39,13 +39,13 @@ function getRequestSelfOrigin(request: Request): string | null {
 
 /**
  * Branch preview hosts look like:
- * https://feature-hybrid-d1-kv-arcadex-celo.<account>.workers.dev
+ * https://feature-hybrid-d1-kv-arcadex-solana.<account>.workers.dev
  */
 function isArcadeXWorkersPreviewOrigin(origin: string): boolean {
   try {
     const { hostname } = new URL(origin);
     return (
-      hostname.endsWith(".workers.dev") && hostname.includes("arcadex-celo")
+      hostname.endsWith(".workers.dev") && hostname.includes("arcadex")
     );
   } catch {
     return false;

@@ -8,24 +8,15 @@ import * as d1 from "@/lib/d1-server";
 import * as rtdb from "@/lib/rtdb-server";
 import { scheduleWorkerWork } from "@/lib/worker-context";
 
-export type { GameStateRecord, ShufflePendingRecord } from "@/lib/rtdb-server";
+export type { GameStateRecord } from "@/lib/rtdb-server";
 
 export {
   SparkSpendError,
-  InfiniteSparkActivationError,
-  SparkRefillActivationError,
-  ScoreSubmitActivationError,
-  StreakSyncError,
-  StreakRewardError,
   GameStateConflictError,
-  // Pure helpers (identical on both backends)
   readStoredScore,
   storedProgressToGameProgress,
-  shuffleUtcDayKey,
-  shuffleUsdtReservationKey,
   resolveActivityWeekId,
   findActivityRank,
-  // Raw RTDB shallow read (admin tools that still need RTDB trees)
   readPathShallow,
 } from "@/lib/rtdb-server";
 
@@ -204,62 +195,6 @@ export async function spendSparkOnServer(
   );
 }
 
-export async function activateInfiniteSparkOnServer(
-  ...args: Parameters<typeof rtdb.activateInfiniteSparkOnServer>
-): ReturnType<typeof rtdb.activateInfiniteSparkOnServer> {
-  return withPlayerBackend(
-    () => d1.activateInfiniteSparkOnServer(...args),
-    () => rtdb.activateInfiniteSparkOnServer(...args)
-  );
-}
-
-export async function activateSparkRefillOnServer(
-  ...args: Parameters<typeof rtdb.activateSparkRefillOnServer>
-): ReturnType<typeof rtdb.activateSparkRefillOnServer> {
-  return withPlayerBackend(
-    () => d1.activateSparkRefillOnServer(...args),
-    () => rtdb.activateSparkRefillOnServer(...args)
-  );
-}
-
-// ─── Streak / shuffle grants ─────────────────────────────────────────────────
-
-export async function recordCheckInTxOnServer(
-  ...args: Parameters<typeof rtdb.recordCheckInTxOnServer>
-): ReturnType<typeof rtdb.recordCheckInTxOnServer> {
-  return withPlayerBackend(
-    () => d1.recordCheckInTxOnServer(...args),
-    () => rtdb.recordCheckInTxOnServer(...args)
-  );
-}
-
-export async function grantStreakInfiniteSparkOnServer(
-  ...args: Parameters<typeof rtdb.grantStreakInfiniteSparkOnServer>
-): ReturnType<typeof rtdb.grantStreakInfiniteSparkOnServer> {
-  return withPlayerBackend(
-    () => d1.grantStreakInfiniteSparkOnServer(...args),
-    () => rtdb.grantStreakInfiniteSparkOnServer(...args)
-  );
-}
-
-export async function recordSpinTxOnServer(
-  ...args: Parameters<typeof rtdb.recordSpinTxOnServer>
-): ReturnType<typeof rtdb.recordSpinTxOnServer> {
-  return withPlayerBackend(
-    () => d1.recordSpinTxOnServer(...args),
-    () => rtdb.recordSpinTxOnServer(...args)
-  );
-}
-
-export async function grantShuffleInfiniteSparkOnServer(
-  ...args: Parameters<typeof rtdb.grantShuffleInfiniteSparkOnServer>
-): ReturnType<typeof rtdb.grantShuffleInfiniteSparkOnServer> {
-  return withPlayerBackend(
-    () => d1.grantShuffleInfiniteSparkOnServer(...args),
-    () => rtdb.grantShuffleInfiniteSparkOnServer(...args)
-  );
-}
-
 // ─── Play counts ─────────────────────────────────────────────────────────────
 
 export async function fetchGamePlayCountsForIds(
@@ -376,15 +311,6 @@ export async function resolveGameProgressFromServer(
   );
 }
 
-export async function activateScoreSubmitOnServer(
-  ...args: Parameters<typeof rtdb.activateScoreSubmitOnServer>
-): ReturnType<typeof rtdb.activateScoreSubmitOnServer> {
-  return withPlayerBackend(
-    () => d1.activateScoreSubmitOnServer(...args),
-    () => rtdb.activateScoreSubmitOnServer(...args)
-  );
-}
-
 export async function saveGameProgressOnServer(
   ...args: Parameters<typeof rtdb.saveGameProgressOnServer>
 ): ReturnType<typeof rtdb.saveGameProgressOnServer> {
@@ -412,105 +338,3 @@ export async function saveGameStateOnServer(
   );
 }
 
-// ─── Shuffle budget / pending ────────────────────────────────────────────────
-
-export async function getShuffleUsdtBudgetRemainingMicro(
-  ...args: Parameters<typeof rtdb.getShuffleUsdtBudgetRemainingMicro>
-): ReturnType<typeof rtdb.getShuffleUsdtBudgetRemainingMicro> {
-  return withPlayerBackend(
-    () => d1.getShuffleUsdtBudgetRemainingMicro(...args),
-    () => rtdb.getShuffleUsdtBudgetRemainingMicro(...args)
-  );
-}
-
-export async function reserveShuffleUsdtBudget(
-  ...args: Parameters<typeof rtdb.reserveShuffleUsdtBudget>
-): ReturnType<typeof rtdb.reserveShuffleUsdtBudget> {
-  return withPlayerBackend(
-    () => d1.reserveShuffleUsdtBudget(...args),
-    () => rtdb.reserveShuffleUsdtBudget(...args)
-  );
-}
-
-export async function confirmShuffleUsdtBudget(
-  ...args: Parameters<typeof rtdb.confirmShuffleUsdtBudget>
-): ReturnType<typeof rtdb.confirmShuffleUsdtBudget> {
-  return withPlayerBackend(
-    () => d1.confirmShuffleUsdtBudget(...args),
-    () => rtdb.confirmShuffleUsdtBudget(...args)
-  );
-}
-
-export async function saveShufflePending(
-  ...args: Parameters<typeof rtdb.saveShufflePending>
-): ReturnType<typeof rtdb.saveShufflePending> {
-  return withPlayerBackend(
-    () => d1.saveShufflePending(...args),
-    () => rtdb.saveShufflePending(...args)
-  );
-}
-
-export async function getShufflePending(
-  ...args: Parameters<typeof rtdb.getShufflePending>
-): ReturnType<typeof rtdb.getShufflePending> {
-  return withPlayerBackend(
-    () => d1.getShufflePending(...args),
-    () => rtdb.getShufflePending(...args)
-  );
-}
-
-export async function bindShufflePendingDevice(
-  ...args: Parameters<typeof rtdb.bindShufflePendingDevice>
-): ReturnType<typeof rtdb.bindShufflePendingDevice> {
-  return withPlayerBackend(
-    () => d1.bindShufflePendingDevice(...args),
-    () => rtdb.bindShufflePendingDevice(...args)
-  );
-}
-
-export async function markShufflePendingConsumed(
-  ...args: Parameters<typeof rtdb.markShufflePendingConsumed>
-): ReturnType<typeof rtdb.markShufflePendingConsumed> {
-  return withPlayerBackend(
-    () => d1.markShufflePendingConsumed(...args),
-    () => rtdb.markShufflePendingConsumed(...args)
-  );
-}
-
-// ─── Device binding ──────────────────────────────────────────────────────────
-
-export async function recordDeviceSeenIfAbsent(
-  ...args: Parameters<typeof rtdb.recordDeviceSeenIfAbsent>
-): ReturnType<typeof rtdb.recordDeviceSeenIfAbsent> {
-  return withPlayerBackend(
-    () => d1.recordDeviceSeenIfAbsent(...args),
-    () => rtdb.recordDeviceSeenIfAbsent(...args)
-  );
-}
-
-export async function getDeviceSeenAt(
-  ...args: Parameters<typeof rtdb.getDeviceSeenAt>
-): ReturnType<typeof rtdb.getDeviceSeenAt> {
-  return withPlayerBackend(
-    () => d1.getDeviceSeenAt(...args),
-    () => rtdb.getDeviceSeenAt(...args)
-  );
-}
-
-export async function bindWalletSessionDevice(
-  ...args: Parameters<typeof rtdb.bindWalletSessionDevice>
-): ReturnType<typeof rtdb.bindWalletSessionDevice> {
-  return withPlayerBackend(
-    () => d1.bindWalletSessionDevice(...args),
-    () => rtdb.bindWalletSessionDevice(...args)
-  );
-}
-
-export async function getWalletSessionDeviceHash(
-  ...args: Parameters<typeof rtdb.getWalletSessionDeviceHash>
-): ReturnType<typeof rtdb.getWalletSessionDeviceHash> {
-  return withPlayerBackend(
-    () => d1.getWalletSessionDeviceHash(...args),
-    () => rtdb.getWalletSessionDeviceHash(...args)
-  );
-}

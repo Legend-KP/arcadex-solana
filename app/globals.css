@@ -232,7 +232,7 @@ a { color: inherit; text-decoration: none; }
 
 /*
  * Portaled to document.body. Anchored to the TOP so the full sheet is visible
- * under MiniPay chrome (sticky topbar no longer traps position:fixed).
+ * under the Seeker WebView chrome (sticky topbar no longer traps position:fixed).
  */
 .activity-lb-backdrop {
   align-items: flex-start;

@@ -119,7 +119,7 @@ export type GameBridgeMessageType =
   | "GAME_STATE_GET"
   | "GAME_STATE_SAVE";
 
-/** @deprecated Legacy MiniPay-prefixed aliases — still accepted inbound. */
+/** @deprecated Legacy Unity message names — still accepted inbound. */
 export type LegacyUnityMessageType =
   | "MINIPAY_BOOTSTRAP"
   | "MINIPAY_SYNC_USER_STATE"
