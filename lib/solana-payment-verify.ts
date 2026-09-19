@@ -63,11 +63,20 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   return json.result as T;
 }
 
+type TokenBalanceEntry = {
+  accountIndex: number;
+  mint: string;
+  owner?: string;
+  uiTokenAmount?: { amount?: string };
+};
+
 type ParsedTx = {
   slot?: number;
   meta?: {
     err: unknown;
     fee?: number;
+    preTokenBalances?: TokenBalanceEntry[] | null;
+    postTokenBalances?: TokenBalanceEntry[] | null;
   } | null;
   transaction?: {
     message?: {
@@ -132,6 +141,61 @@ function base58ToUtf8(input: string): string | null {
 function accountKey(entry: string | { pubkey: string } | undefined): string {
   if (!entry) return "";
   return typeof entry === "string" ? entry : entry.pubkey;
+}
+
+/**
+ * Known treasury associated token accounts (ATA derivation needs ed25519
+ * curve checks we don't want to ship server-side). Used as a fallback when the
+ * RPC omits `owner` in token balance metadata.
+ */
+const KNOWN_TREASURY_TOKEN_ACCOUNTS: Record<string, Record<string, string>> = {
+  BVn8YwTvXNQVn8az9UQFgM7X6eY6uF4MRyPf6hqfa9Tf: {
+    EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v:
+      "HVaARy56GNMUUqKS5ruGo3tLFHvn2pzKFrd1Ge8wNqJd", // USDC
+    Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB:
+      "E8aqTnddTtWRF4YJKvFnmeX4u3hdu3nbbqwbvaWNZkZi", // USDT
+  },
+};
+
+/**
+ * Token accounts in this tx that belong to the treasury, keyed by mint.
+ * Primary source: `meta.postTokenBalances[].owner` (the treasury wallet itself
+ * is usually NOT in accountKeys — only its ATA is). Fallback: known ATAs.
+ */
+function treasuryTokenAccounts(
+  tx: ParsedTx,
+  treasury: string
+): Map<string, Set<string>> {
+  const keys = (tx.transaction?.message?.accountKeys ?? []).map(accountKey);
+  const byMint = new Map<string, Set<string>>();
+  const add = (mint: string, account: string) => {
+    if (!mint || !account) return;
+    if (!byMint.has(mint)) byMint.set(mint, new Set());
+    byMint.get(mint)!.add(account);
+  };
+
+  const balances = [
+    ...(tx.meta?.postTokenBalances ?? []),
+    ...(tx.meta?.preTokenBalances ?? []),
+  ];
+  for (const b of balances) {
+    if (b.owner === treasury) add(b.mint, keys[b.accountIndex] ?? "");
+  }
+  for (const [mint, ata] of Object.entries(
+    KNOWN_TREASURY_TOKEN_ACCOUNTS[treasury] ?? {}
+  )) {
+    add(mint, ata);
+  }
+  return byMint;
+}
+
+/** Net change of the treasury's balance for `mint`, from pre/post balances. */
+function treasuryDelta(tx: ParsedTx, treasury: string, mint: string): number {
+  const sum = (entries: TokenBalanceEntry[] | null | undefined) =>
+    (entries ?? [])
+      .filter((b) => b.owner === treasury && b.mint === mint)
+      .reduce((acc, b) => acc + Number(b.uiTokenAmount?.amount ?? 0), 0);
+  return sum(tx.meta?.postTokenBalances) - sum(tx.meta?.preTokenBalances);
 }
 
 function extractMemos(tx: ParsedTx): string[] {
@@ -262,42 +326,48 @@ export async function verifySolanaArcadePayment(opts: {
   const expectedAmount = SOLANA_FEE_ATOMS[opts.expectedPurpose];
   const transfers = extractTokenTransfers(tx);
   const treasury = SOLANA_TREASURY;
-  const hit = transfers.find((t) => {
-    const token = solanaTokenForMint(t.mint);
-    if (!token) return false;
-    if (t.amount !== expectedAmount) return false;
-    // Prefer owner match; fall back to destination ATA string search via account keys later
-    if (t.destinationOwner && t.destinationOwner === treasury) return true;
-    return false;
-  });
+  const treasuryAccounts = treasuryTokenAccounts(tx, treasury);
 
-  // Fallback: any matching mint+amount where fee payer is expected payer
-  // and treasury appears in account keys (ATA destination).
-  let resolved = hit;
+  const isToTreasury = (t: TokenTransferHit) =>
+    (t.destinationOwner && t.destinationOwner === treasury) ||
+    (t.destination && treasuryAccounts.get(t.mint)?.has(t.destination)) ||
+    false;
+
+  // Primary: a top-level transferChecked/transfer of the exact fee into a
+  // treasury token account for a supported mint.
+  let resolved = transfers.find(
+    (t) =>
+      Boolean(solanaTokenForMint(t.mint)) &&
+      t.amount === expectedAmount &&
+      isToTreasury(t)
+  );
+
+  // Fallback: balance delta (covers CPI/inner-instruction transfers).
+  let deltaMint: string | null = null;
   if (!resolved) {
-    const keys = (tx.transaction?.message?.accountKeys ?? []).map(accountKey);
-    const treasuryInKeys = keys.includes(treasury);
-    resolved = transfers.find((t) => {
-      const token = solanaTokenForMint(t.mint);
-      return (
-        Boolean(token) &&
-        t.amount === expectedAmount &&
-        treasuryInKeys &&
-        (!t.sourceOwner || t.sourceOwner === opts.expectedPayer)
-      );
-    });
+    for (const mint of treasuryAccounts.keys()) {
+      if (!solanaTokenForMint(mint)) continue;
+      if (treasuryDelta(tx, treasury, mint) === expectedAmount) {
+        deltaMint = mint;
+        break;
+      }
+    }
   }
 
-  if (!resolved) {
+  if (!resolved && !deltaMint) {
     throw new SolanaPaymentVerifyError(
       `No ${opts.expectedPurpose} fee transfer of ${expectedAmount} to treasury found.`,
       "WRONG_AMOUNT"
     );
   }
 
-  const token = solanaTokenForMint(resolved.mint);
+  const mint = resolved?.mint ?? deltaMint!;
+  const token = solanaTokenForMint(mint);
   if (!token) {
     throw new SolanaPaymentVerifyError("Unsupported mint.", "INVALID_TX");
+  }
+  if (!resolved) {
+    resolved = { mint, amount: expectedAmount };
   }
 
   const payer =
