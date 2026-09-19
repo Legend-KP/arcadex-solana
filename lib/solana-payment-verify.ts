@@ -72,17 +72,62 @@ type ParsedTx = {
   transaction?: {
     message?: {
       accountKeys?: Array<string | { pubkey: string }>;
-      instructions?: Array<{
-        programId?: string;
-        parsed?: {
-          type?: string;
-          info?: Record<string, unknown>;
-        };
-        data?: string;
-      }>;
+      instructions?: Array<ParsedInstruction>;
     };
   };
 };
+
+type ParsedInstruction = {
+  programId?: string;
+  program?: string;
+  // spl-memo: `parsed` is the memo text itself (plain string).
+  // spl-token etc.: `parsed` is `{ type, info }`.
+  parsed?:
+    | string
+    | {
+        type?: string;
+        info?: Record<string, unknown> | string;
+      };
+  // Unparsed instructions carry base58 data under `jsonParsed` encoding.
+  data?: string;
+};
+
+const MEMO_PROGRAM_IDS = new Set([
+  "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr", // Memo v2
+  "Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo", // Memo v1
+]);
+
+const BASE58_ALPHABET =
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+function base58ToUtf8(input: string): string | null {
+  // Big-endian byte array, multiply-add one base58 digit at a time.
+  const bytes: number[] = [];
+  for (const ch of input) {
+    let carry = BASE58_ALPHABET.indexOf(ch);
+    if (carry < 0) return null;
+    for (let i = bytes.length - 1; i >= 0; i--) {
+      carry += bytes[i] * 58;
+      bytes[i] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.unshift(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (const ch of input) {
+    if (ch !== "1") break;
+    bytes.unshift(0);
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      Uint8Array.from(bytes)
+    );
+  } catch {
+    return null;
+  }
+}
 
 function accountKey(entry: string | { pubkey: string } | undefined): string {
   if (!entry) return "";
@@ -93,23 +138,30 @@ function extractMemos(tx: ParsedTx): string[] {
   const ixs = tx.transaction?.message?.instructions ?? [];
   const memos: string[] = [];
   for (const ix of ixs) {
-    if (ix.programId === "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr") {
-      const parsed = ix.parsed as { type?: string; info?: string } | undefined;
-      if (typeof parsed?.info === "string") memos.push(parsed.info);
-      else if (typeof ix.data === "string") {
-        try {
-          memos.push(Buffer.from(ix.data, "base64").toString("utf8"));
-        } catch {
-          /* ignore */
-        }
-      }
+    const isMemoProgram =
+      (ix.programId && MEMO_PROGRAM_IDS.has(ix.programId)) ||
+      ix.program === "spl-memo";
+    if (!isMemoProgram) continue;
+
+    // Standard jsonParsed shape: parsed is the memo string.
+    if (typeof ix.parsed === "string") {
+      memos.push(ix.parsed);
+      continue;
     }
-    // Some RPCs nest memo differently
-    if (
-      ix.parsed?.type === "memo" &&
-      typeof (ix.parsed.info as { memo?: string } | undefined)?.memo === "string"
-    ) {
-      memos.push((ix.parsed.info as { memo: string }).memo);
+    // Defensive: some providers wrap it.
+    if (ix.parsed && typeof ix.parsed === "object") {
+      const info = ix.parsed.info;
+      if (typeof info === "string") memos.push(info);
+      else if (info && typeof info === "object") {
+        const memo = (info as { memo?: unknown }).memo;
+        if (typeof memo === "string") memos.push(memo);
+      }
+      continue;
+    }
+    // Unparsed fallback: base58 bytes.
+    if (typeof ix.data === "string") {
+      const text = base58ToUtf8(ix.data);
+      if (text) memos.push(text);
     }
   }
   return memos;
@@ -128,7 +180,8 @@ function extractTokenTransfers(tx: ParsedTx): TokenTransferHit[] {
   const hits: TokenTransferHit[] = [];
   for (const ix of ixs) {
     const parsed = ix.parsed;
-    if (!parsed?.info) continue;
+    if (!parsed || typeof parsed !== "object") continue;
+    if (!parsed.info || typeof parsed.info !== "object") continue;
     if (parsed.type !== "transfer" && parsed.type !== "transferChecked") {
       continue;
     }
