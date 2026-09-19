@@ -229,18 +229,77 @@ export async function buildArcadePayTx(opts) {
   return { prepared, transaction, blockhash, lastValidBlockHeight };
 }
 
-/** Broadcast a signed tx (after wallet.signTransactions). */
-export async function sendSignedArcadePayTx(signedTx) {
+function isBlockhashNotFound(err) {
+  return /blockhash not found/i.test(String(err?.message || err || ""));
+}
+
+/**
+ * Broadcast a signed tx (after wallet.signTransactions) and wait for it to
+ * land. Pass the blockhash/lastValidBlockHeight the tx was built with so an
+ * expired blockhash becomes a clear error instead of a silent drop.
+ * @param {import("@solana/web3.js").Transaction|Uint8Array} signedTx
+ * @param {{ blockhash?: string, lastValidBlockHeight?: number }} [lifetime]
+ */
+export async function sendSignedArcadePayTx(signedTx, lifetime = {}) {
   const connection = getConnection();
   const raw =
     typeof signedTx.serialize === "function"
       ? signedTx.serialize()
       : signedTx;
-  return withRpcTimeout(
-    connection.sendRawTransaction(raw, {
-      skipPreflight: false,
-      preflightCommitment: "confirmed",
-    }),
-    "broadcast"
-  );
+
+  let signature;
+  try {
+    signature = await withRpcTimeout(
+      connection.sendRawTransaction(raw, {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+        maxRetries: 3,
+      }),
+      "broadcast"
+    );
+  } catch (err) {
+    // Preflight "Blockhash not found" is often just the RPC node lagging a
+    // few slots behind the one that issued the blockhash. Send without
+    // preflight and let confirmation decide.
+    if (!isBlockhashNotFound(err)) throw err;
+    console.warn("MWA_PAY", "preflight_blockhash_lag_retry");
+    signature = await withRpcTimeout(
+      connection.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 3 }),
+      "broadcast_retry"
+    );
+  }
+
+  signature = String(signature);
+
+  if (lifetime.blockhash && lifetime.lastValidBlockHeight) {
+    let status;
+    try {
+      status = await withRpcTimeout(
+        connection.confirmTransaction(
+          {
+            signature,
+            blockhash: lifetime.blockhash,
+            lastValidBlockHeight: lifetime.lastValidBlockHeight,
+          },
+          "confirmed"
+        ),
+        "confirm",
+        90_000
+      );
+    } catch (err) {
+      if (/block height exceeded|expired/i.test(String(err?.message || err))) {
+        throw new Error(
+          "Payment expired before it reached the network (blockhash too old). Tap again and approve in Phantom as soon as it opens."
+        );
+      }
+      throw err;
+    }
+    if (status?.value?.err) {
+      throw new Error(
+        `Payment failed on-chain: ${JSON.stringify(status.value.err)}`
+      );
+    }
+  }
+
+  return signature;
 }

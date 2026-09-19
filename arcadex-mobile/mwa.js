@@ -249,25 +249,30 @@ function logMwaPayError(label, err) {
  */
 export async function payArcadeFeeMwa(AsyncStorage, opts) {
   return withMwaLock(async () => {
-    const { buildArcadePayTx, sendSignedArcadePayTx } = await import(
-      "./solana-pay"
-    );
+    const {
+      prepareArcadePay,
+      fetchFreshBlockhash,
+      assembleArcadePayTx,
+      sendSignedArcadePayTx,
+    } = await import("./solana-pay");
 
     const payerBase58 = opts.payerBase58?.trim();
     if (!payerBase58) {
       throw new Error("Connect & sign in with your Solana wallet first.");
     }
 
-    // ALL RPC + assembly before Phantom opens.
-    let built;
+    // Balance / ATA checks before Phantom opens. The blockhash is fetched
+    // INSIDE the session right before signing: a blockhash only lives ~60-90s
+    // and Phantom's popup + the user's confirm can easily exceed that.
+    let prepared;
     try {
-      built = await buildArcadePayTx({
+      prepared = await prepareArcadePay({
         payerBase58,
         purpose: opts.purpose,
         token: opts.token,
       });
     } catch (err) {
-      logMwaPayError("build_tx", err);
+      logMwaPayError("prepare", err);
       throw new Error(formatMwaError(err, "Payment failed."));
     }
 
@@ -299,24 +304,32 @@ export async function payArcadeFeeMwa(AsyncStorage, opts) {
             );
           }
 
-          step = "signAndSend";
-          try {
-            const [sig] = await wallet.signAndSendTransactions({
-              transactions: [built.transaction],
-            });
-            return { address, authToken: auth.auth_token ?? null, signature: String(sig) };
-          } catch (e) {
-            if (isUserCancellation(e)) throw e;
-            console.warn("MWA_PAY", "signAndSend_failed", e?.name, e?.code, e?.message);
-            step = "signTransactions";
-            const [signedTx] = await wallet.signTransactions({
-              transactions: [built.transaction],
-            });
-            if (!signedTx) throw new Error("Wallet did not return a signed payment.");
-            return { address, authToken: auth.auth_token ?? null, signedTx };
-          }
+          // Fresh blockhash as late as possible, then assemble (no RPC).
+          step = "blockhash";
+          const { blockhash, lastValidBlockHeight } = await fetchFreshBlockhash();
+          const transaction = assembleArcadePayTx(
+            prepared,
+            blockhash,
+            lastValidBlockHeight
+          );
+          console.warn("MWA_PAY", "tx_ready", blockhash.slice(0, 8));
+
+          // Sign only; we broadcast + confirm ourselves. If the session times
+          // out after this point nothing has been sent, so no funds move.
+          step = "signTransactions";
+          const [signedTx] = await wallet.signTransactions({
+            transactions: [transaction],
+          });
+          if (!signedTx) throw new Error("Wallet did not return a signed payment.");
+          return {
+            address,
+            authToken: auth.auth_token ?? null,
+            signedTx,
+            blockhash,
+            lastValidBlockHeight,
+          };
         }),
-        120_000,
+        180_000,
         "wallet session"
       );
 
@@ -325,8 +338,11 @@ export async function payArcadeFeeMwa(AsyncStorage, opts) {
       }
 
       step = "broadcast";
-      const signature =
-        result.signature ?? String(await sendSignedArcadePayTx(result.signedTx));
+      const signature = await sendSignedArcadePayTx(result.signedTx, {
+        blockhash: result.blockhash,
+        lastValidBlockHeight: result.lastValidBlockHeight,
+      });
+      console.warn("MWA_PAY", "broadcast_ok", signature.slice(0, 12));
       return { address: result.address, purpose: opts.purpose, token: opts.token, signature };
     };
 
