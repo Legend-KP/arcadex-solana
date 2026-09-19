@@ -271,35 +271,73 @@ export async function sendSignedArcadePayTx(signedTx, lifetime = {}) {
 
   signature = String(signature);
 
-  if (lifetime.blockhash && lifetime.lastValidBlockHeight) {
-    let status;
-    try {
-      status = await withRpcTimeout(
-        connection.confirmTransaction(
-          {
-            signature,
-            blockhash: lifetime.blockhash,
-            lastValidBlockHeight: lifetime.lastValidBlockHeight,
-          },
-          "confirmed"
-        ),
-        "confirm",
-        90_000
-      );
-    } catch (err) {
-      if (/block height exceeded|expired/i.test(String(err?.message || err))) {
-        throw new Error(
-          "Payment expired before it reached the network (blockhash too old). Tap again and approve in Phantom as soon as it opens."
-        );
-      }
-      throw err;
-    }
-    if (status?.value?.err) {
-      throw new Error(
-        `Payment failed on-chain: ${JSON.stringify(status.value.err)}`
-      );
-    }
+  if (lifetime.lastValidBlockHeight) {
+    await confirmByPolling(connection, signature, lifetime.lastValidBlockHeight);
   }
 
   return signature;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchStatus(connection, signature, searchHistory = false) {
+  const res = await connection.getSignatureStatuses([signature], {
+    searchTransactionHistory: searchHistory,
+  });
+  return res?.value?.[0] ?? null;
+}
+
+/**
+ * Confirm via HTTP polling only. `connection.confirmTransaction` relies on a
+ * WebSocket `signatureSubscribe` that React Native + public RPCs often never
+ * deliver, so it "expires" payments that actually landed on-chain.
+ */
+async function confirmByPolling(connection, signature, lastValidBlockHeight) {
+  const deadline = Date.now() + 120_000;
+  let expiredAt = null;
+
+  while (Date.now() < deadline) {
+    let status = null;
+    try {
+      status = await fetchStatus(connection, signature);
+    } catch (err) {
+      console.warn("MWA_PAY", "status_poll_failed", err?.message);
+    }
+
+    if (status) {
+      if (status.err) {
+        throw new Error(
+          `Payment failed on-chain: ${JSON.stringify(status.err)}`
+        );
+      }
+      const level = status.confirmationStatus;
+      if (level === "confirmed" || level === "finalized") return;
+    }
+
+    // Blockhash lifetime check — only after a grace period, and only after a
+    // last look through history, since status can lag the block height.
+    if (!expiredAt) {
+      try {
+        const height = await connection.getBlockHeight("confirmed");
+        if (height > lastValidBlockHeight) expiredAt = Date.now();
+      } catch {
+        /* ignore, keep polling */
+      }
+    } else if (Date.now() - expiredAt > 15_000) {
+      const finalLook = await fetchStatus(connection, signature, true).catch(
+        () => null
+      );
+      if (finalLook && !finalLook.err) return;
+      throw new Error(
+        "Payment expired before it reached the network (blockhash too old). Tap again and approve in Phantom as soon as it opens."
+      );
+    }
+
+    await sleep(2_000);
+  }
+
+  // Timed out without a definitive answer: do NOT report failure — the tx was
+  // broadcast and may well have landed. Hand the signature back for the
+  // server to verify.
+  console.warn("MWA_PAY", "confirm_timeout_unknown", signature.slice(0, 12));
 }

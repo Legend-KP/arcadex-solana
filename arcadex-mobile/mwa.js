@@ -141,21 +141,34 @@ async function freshAuthorize(wallet) {
 async function authorizeWallet(wallet, authToken) {
   if (!authToken) return freshAuthorize(wallet);
 
+  // MWA 2.0: `authorize` + `auth_token` is the supported silent-reconnect path
+  // (Phantom honours this; the legacy `reauthorize` is what kept failing and
+  // pushing us to a fresh authorize = the connect screen every time).
   try {
-    if (typeof wallet.reauthorize === "function") {
-      return await wallet.reauthorize({
-        auth_token: authToken,
-        identity: APP_IDENTITY,
-      });
-    }
-    return await wallet.authorize({
+    const res = await wallet.authorize({
       chain: SOLANA_CHAIN,
       identity: APP_IDENTITY,
       auth_token: authToken,
     });
+    console.warn("MWA_PAY", "token_authorize_ok");
+    return res;
   } catch (err) {
     if (isUserCancellation(err)) throw err;
     console.warn("MWA_PAY", "token_authorize_failed", err?.code, err?.message);
+  }
+
+  if (typeof wallet.reauthorize === "function") {
+    try {
+      const res = await wallet.reauthorize({
+        auth_token: authToken,
+        identity: APP_IDENTITY,
+      });
+      console.warn("MWA_PAY", "reauthorize_ok");
+      return res;
+    } catch (err) {
+      if (isUserCancellation(err)) throw err;
+      console.warn("MWA_PAY", "reauthorize_failed", err?.code, err?.message);
+    }
   }
 
   console.warn("MWA_PAY", "fresh_authorize");
