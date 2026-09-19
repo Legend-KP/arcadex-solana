@@ -91,10 +91,20 @@ export function isUserCancellation(err) {
   );
 }
 
+/**
+ * True only for errors that mean the stored auth token is stale/rejected.
+ * MWA code -1 = ERROR_AUTHORIZATION_FAILED ("-1/authorization request failed").
+ */
 function isAuthFailure(err) {
   if (isUserCancellation(err)) return false;
   const msg = errorText(err).toLowerCase();
-  return msg.includes("auth_token") || msg.includes("not authorized") || msg.includes("-32602");
+  return (
+    msg.includes("auth_token") ||
+    msg.includes("not authorized") ||
+    msg.includes("authorization request failed") ||
+    msg.includes("-32602") ||
+    /(^|\s|")-1\//.test(msg)
+  );
 }
 
 function withTimeout(promise, ms, label) {
@@ -112,28 +122,44 @@ export function formatMwaError(err, fallback = "Wallet request failed.") {
     return "Wallet request was cancelled. Tap again and approve in Phantom.";
   }
   const msg = String(err?.message || err || "").trim();
+  if (msg.toLowerCase().includes("authorization request failed")) {
+    return "Phantom rejected the connection. In Phantom, go to Settings → Connected apps, remove ArcadeX, then tap again.";
+  }
   if (msg) return msg;
   return fallback;
 }
 
+async function freshAuthorize(wallet) {
+  return wallet.authorize({ chain: SOLANA_CHAIN, identity: APP_IDENTITY });
+}
+
+/**
+ * Reuse a stored token when Phantom still accepts it; otherwise fall back to
+ * a fresh authorize in the SAME session. Retrying with a rejected token gives
+ * "-1/authorization request failed" every time, so never resend it.
+ */
 async function authorizeWallet(wallet, authToken) {
-  // Prefer reauthorize when we already have a token (avoids connect UI).
-  if (authToken && typeof wallet.reauthorize === "function") {
-    try {
+  if (!authToken) return freshAuthorize(wallet);
+
+  try {
+    if (typeof wallet.reauthorize === "function") {
       return await wallet.reauthorize({
         auth_token: authToken,
         identity: APP_IDENTITY,
       });
-    } catch (err) {
-      console.warn("MWA_PAY", "reauthorize_failed", err?.message);
-      // Fall through to full authorize.
     }
+    return await wallet.authorize({
+      chain: SOLANA_CHAIN,
+      identity: APP_IDENTITY,
+      auth_token: authToken,
+    });
+  } catch (err) {
+    if (isUserCancellation(err)) throw err;
+    console.warn("MWA_PAY", "token_authorize_failed", err?.code, err?.message);
   }
-  return wallet.authorize({
-    chain: SOLANA_CHAIN,
-    identity: APP_IDENTITY,
-    ...(authToken ? { auth_token: authToken } : {}),
-  });
+
+  console.warn("MWA_PAY", "fresh_authorize");
+  return freshAuthorize(wallet);
 }
 
 export async function connectAndSignInMwaWallet(AsyncStorage) {
