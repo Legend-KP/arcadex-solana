@@ -1141,13 +1141,13 @@ a { color: inherit; text-decoration: none; }
 /* ?? Game grid ?????????????????????????????????????????? */
 .games-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px 12px;
-  padding: 10px 14px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 14px;
+  padding: 14px 16px 20px;
 }
 
 .game-card-skeleton {
-  aspect-ratio: 0.72;
+  aspect-ratio: 4 / 5;
   border-radius: 18px;
   background: linear-gradient(
     90deg,
@@ -1205,8 +1205,9 @@ a { color: inherit; text-decoration: none; }
 
 .thumb-wrap {
   position: relative;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 4 / 5;
   width: 100%;
+  flex: 0 0 auto;
   overflow: hidden;
   border-radius: 16px;
   border: 2.5px solid transparent;
@@ -1237,19 +1238,21 @@ a { color: inherit; text-decoration: none; }
 }
 
 .thumb-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
-  object-position: center top;
+  object-position: center;
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .game-card:hover .thumb-img {
   transform: scale(1.04);
 }
 .thumb-placeholder {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
   background: linear-gradient(160deg, #e8eaf0 0%, #f4f5f8 55%, #eceef3 100%);
 }
 
@@ -3682,7 +3685,7 @@ a { color: inherit; text-decoration: none; }
 
 .thumb-preview-wrap {
   width: 100px;
-  aspect-ratio: 3/4;
+  aspect-ratio: 4 / 5;
   border-radius: 12px;
   overflow: hidden;
   margin-top: 10px;

@@ -36,6 +36,7 @@ import {
   getCachedWallet,
   getOrCreateGuestId,
   setCachedPlayerName,
+  setCachedWallet,
 } from "@/lib/player-id";
 import { fetchDailyPlayConfig } from "@/lib/daily-play-config-client";
 import type { DailyPlayMode } from "@/lib/daily-play-mode";
@@ -165,35 +166,58 @@ export default function PlayerProfileProvider({
       getCachedSolanaAddress() || getCachedWallet() || walletAddress;
     if (!wallet) {
       setStreakStatus(null);
+      setCheckInVisible(false);
       setDailyGateResolved(true);
       return;
     }
     try {
-      const config = await fetchDailyPlayConfig();
+      const config = await fetchDailyPlayConfig({ fresh: true });
       setDailyPlayMode(config.mode);
       setDailyCampaignId(config.campaignId);
-      const status = await fetchStreakStatus(wallet, config.campaignId, {
-        fresh: true,
-        mode: config.mode,
-      });
-      setStreakStatus(status);
 
       if (config.mode === "shuffle") {
-        const shuffleAlreadyDone = hasShuffleDoneToday(
-          wallet,
-          config.campaignId
-        );
-        if (shuffleAlreadyDone || !status.canCheckIn) {
-          markShuffleDoneToday(wallet, config.campaignId);
+        if (hasShuffleDoneToday(wallet, config.campaignId)) {
           setCheckInVisible(false);
-        } else {
+          setDailyGateResolved(true);
+          return;
+        }
+        try {
+          const status = await fetchStreakStatus(wallet, config.campaignId, {
+            fresh: true,
+            mode: "shuffle",
+          });
+          setStreakStatus(status);
+          if (!status.canCheckIn) {
+            markShuffleDoneToday(wallet, config.campaignId);
+            setCheckInVisible(false);
+          } else {
+            setCheckInVisible(true);
+          }
+        } catch (err) {
+          // Don't hide the jackpot if status is briefly broken (e.g. migration).
+          console.warn("shuffle status failed; showing UI anyway", err);
+          setStreakStatus({
+            walletAddress: wallet,
+            campaignId: config.campaignId,
+            currentDay: 0,
+            requiredDays: 1,
+            lastCheckInAt: 0,
+            canCheckIn: true,
+            streakWouldReset: false,
+            configured: true,
+          });
           setCheckInVisible(true);
         }
       } else {
-        // Streak mode — open check-in when due.
+        const status = await fetchStreakStatus(wallet, config.campaignId, {
+          fresh: true,
+          mode: "streak",
+        });
+        setStreakStatus(status);
         setCheckInVisible(Boolean(status.canCheckIn));
       }
-    } catch {
+    } catch (err) {
+      console.warn("daily play refresh failed", err);
       setCheckInVisible(false);
     } finally {
       setDailyGateResolved(true);
@@ -211,6 +235,16 @@ export default function PlayerProfileProvider({
     }
     void refreshStreakStatus();
   }, [isReady, showOnboarding, showModal, walletAddress, refreshStreakStatus]);
+
+  // After Phantom connect/sign-in, always re-check daily shuffle.
+  useEffect(() => {
+    const onConnected = () => {
+      void refreshStreakStatus();
+    };
+    window.addEventListener("arcadex-solana-connected", onConnected);
+    return () =>
+      window.removeEventListener("arcadex-solana-connected", onConnected);
+  }, [refreshStreakStatus]);
 
   const handleSubmit = useCallback(async (name: string) => {
     setSaving(true);
@@ -249,18 +283,27 @@ export default function PlayerProfileProvider({
 
   const updateWalletAddress = useCallback(
     async (nextWallet: string) => {
-      if (!profile?.name) return;
       const wallet = nextWallet.trim();
-      setProfile({
-        ...profile,
-        id: wallet || profile.id,
-        walletAddress: wallet || undefined,
-        updatedAt: Date.now(),
-      });
-      setPlayerId(wallet || profile.id);
+      if (!wallet) return;
+      try {
+        setCachedWallet(wallet);
+      } catch {
+        // invalid address — ignore
+      }
       setWalletAddress(wallet);
+      setPlayerId(wallet);
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              id: wallet,
+              walletAddress: wallet,
+              updatedAt: Date.now(),
+            }
+          : prev
+      );
     },
-    [profile]
+    []
   );
 
   const handleDailyComplete = useCallback(
