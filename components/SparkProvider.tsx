@@ -21,6 +21,7 @@ import { writeGuestSparkStateJson } from "@/lib/player-id";
 import {
   purchaseInfiniteSparkOnSolana,
   purchaseSparkRefillOnSolana,
+  recoverPendingSolanaPayments,
 } from "@/lib/solana-purchases";
 import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
 import {
@@ -101,6 +102,35 @@ export default function SparkProvider({
   useEffect(() => {
     setState(loadGuestSparkData().state);
     setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => {
+      setState(loadGuestSparkData().state);
+    };
+    window.addEventListener("arcadex-sparks-changed", onChange);
+    return () => window.removeEventListener("arcadex-sparks-changed", onChange);
+  }, []);
+
+  // Credit any payment that Phantom sent but the app never finished
+  // (confirm/verify failed, app closed, etc.). Safe to run every load:
+  // the server dedupes on signature and pending entries are removed once
+  // credited.
+  useEffect(() => {
+    if (!canPayWithSolana()) return;
+    let cancelled = false;
+    recoverPendingSolanaPayments()
+      .then((recovered) => {
+        if (!cancelled && recovered) {
+          setState(coerceSparkState(recovered.state));
+        }
+      })
+      .catch(() => {
+        /* recovery is best-effort; it retries on the next load */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

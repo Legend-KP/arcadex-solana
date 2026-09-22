@@ -32,7 +32,9 @@
 		"preview": {
 			"name": "arcadex-solana-preview",
 			"vars": {
-				"PLAYER_DATA_BACKEND": "d1"
+				"PLAYER_DATA_BACKEND": "d1",
+				"DAILY_PLAY_MODE": "shuffle",
+				"NEXT_PUBLIC_DAILY_PLAY_MODE": "shuffle"
 			},
 			"services": [
 				{
@@ -59,7 +61,9 @@
 		"production": {
 			"name": "arcadex-solana",
 			"vars": {
-				"PLAYER_DATA_BACKEND": "d1"
+				"PLAYER_DATA_BACKEND": "d1",
+				"DAILY_PLAY_MODE": "shuffle",
+				"NEXT_PUBLIC_DAILY_PLAY_MODE": "shuffle"
 			},
 			"services": [
 				{

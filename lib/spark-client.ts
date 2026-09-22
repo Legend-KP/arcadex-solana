@@ -75,6 +75,27 @@ export function spendGuestSpark(): SparkSpendResponse {
   };
 }
 
+/** Extend local Infinite Spark by 24h (shuffle / streak prize). */
+export function grantGuestInfiniteSpark(
+  durationMs = 24 * 60 * 60 * 1000
+): SparkApiResponse {
+  const now = Date.now();
+  const current = normalizeSparkState(loadGuestSparkData().state, now);
+  const baseUntil =
+    current.infiniteUntil && current.infiniteUntil > now
+      ? current.infiniteUntil
+      : now;
+  const next = {
+    ...current,
+    infiniteUntil: baseUntil + durationMs,
+  };
+  writeGuestSparkStateJson(JSON.stringify(next));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("arcadex-sparks-changed"));
+  }
+  return { state: next, sparks: computeSparkSnapshot(next) };
+}
+
 export async function spendSpark(
   walletAddress: string
 ): Promise<SparkSpendResponse> {

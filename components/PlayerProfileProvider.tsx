@@ -11,6 +11,9 @@ import {
 import OnboardingModal from "@/components/OnboardingModal";
 import PlayerNameModal from "@/components/PlayerNameModal";
 import ConnectWalletModal from "@/components/ConnectWalletModal";
+import DailyShuffleModal from "@/components/DailyShuffleModal";
+import DailyCheckInModal from "@/components/DailyCheckInModal";
+import DailyStreakBrokenModal from "@/components/DailyStreakBrokenModal";
 import {
   hasSeenMwaConnectPromptThisSession,
   markMwaConnectPromptSeen,
@@ -34,6 +37,21 @@ import {
   getOrCreateGuestId,
   setCachedPlayerName,
 } from "@/lib/player-id";
+import { fetchDailyPlayConfig } from "@/lib/daily-play-config-client";
+import type { DailyPlayMode } from "@/lib/daily-play-mode";
+import {
+  hasShuffleDoneToday,
+  markShuffleDoneToday,
+} from "@/lib/shuffle-done-today";
+import {
+  hasSeenStreakBroken,
+  markStreakBrokenSeen,
+} from "@/lib/streak-broken-seen";
+import {
+  fetchStreakStatus,
+  type StreakStatus,
+} from "@/lib/streak-client";
+import { grantGuestInfiniteSpark } from "@/lib/spark-client";
 import { PlayerProfile } from "@/types";
 
 interface PlayerProfileContextValue {
@@ -46,6 +64,8 @@ interface PlayerProfileContextValue {
   isReady: boolean;
   updateWalletAddress: (walletAddress: string) => Promise<void>;
   openOnboarding: () => void;
+  streakStatus: StreakStatus | null;
+  refreshStreakStatus: () => Promise<void>;
 }
 
 const PlayerProfileContext = createContext<PlayerProfileContextValue | null>(
@@ -86,6 +106,13 @@ export default function PlayerProfileProvider({
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const [dailyPlayMode, setDailyPlayMode] = useState<DailyPlayMode>("shuffle");
+  const [dailyCampaignId, setDailyCampaignId] = useState(3);
+  const [streakStatus, setStreakStatus] = useState<StreakStatus | null>(null);
+  const [checkInVisible, setCheckInVisible] = useState(false);
+  const [streakBrokenDismissed, setStreakBrokenDismissed] = useState(false);
+  const [dailyGateResolved, setDailyGateResolved] = useState(false);
 
   useEffect(() => {
     const unseen = !hasSeenOnboarding();
@@ -132,6 +159,58 @@ export default function PlayerProfileProvider({
 
     setIsReady(true);
   }, []);
+
+  const refreshStreakStatus = useCallback(async () => {
+    const wallet =
+      getCachedSolanaAddress() || getCachedWallet() || walletAddress;
+    if (!wallet) {
+      setStreakStatus(null);
+      setDailyGateResolved(true);
+      return;
+    }
+    try {
+      const config = await fetchDailyPlayConfig();
+      setDailyPlayMode(config.mode);
+      setDailyCampaignId(config.campaignId);
+      const status = await fetchStreakStatus(wallet, config.campaignId, {
+        fresh: true,
+        mode: config.mode,
+      });
+      setStreakStatus(status);
+
+      if (config.mode === "shuffle") {
+        const shuffleAlreadyDone = hasShuffleDoneToday(
+          wallet,
+          config.campaignId
+        );
+        if (shuffleAlreadyDone || !status.canCheckIn) {
+          markShuffleDoneToday(wallet, config.campaignId);
+          setCheckInVisible(false);
+        } else {
+          setCheckInVisible(true);
+        }
+      } else {
+        // Streak mode — open check-in when due.
+        setCheckInVisible(Boolean(status.canCheckIn));
+      }
+    } catch {
+      setCheckInVisible(false);
+    } finally {
+      setDailyGateResolved(true);
+    }
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    if (showOnboarding === true) return;
+    if (showModal) return;
+    const wallet = getCachedSolanaAddress() || getCachedWallet();
+    if (!wallet || !hasCachedSolanaSignIn()) {
+      setDailyGateResolved(true);
+      return;
+    }
+    void refreshStreakStatus();
+  }, [isReady, showOnboarding, showModal, walletAddress, refreshStreakStatus]);
 
   const handleSubmit = useCallback(async (name: string) => {
     setSaving(true);
@@ -184,6 +263,37 @@ export default function PlayerProfileProvider({
     [profile]
   );
 
+  const handleDailyComplete = useCallback(
+    (result: {
+      day: number;
+      milestone: boolean;
+      infiniteSparkGranted: boolean;
+    }) => {
+      const wallet =
+        getCachedSolanaAddress() || getCachedWallet() || walletAddress;
+      if (wallet && dailyPlayMode === "shuffle") {
+        markShuffleDoneToday(wallet, dailyCampaignId);
+      }
+      if (result.infiniteSparkGranted) {
+        grantGuestInfiniteSpark();
+      }
+      setCheckInVisible(false);
+      void refreshStreakStatus();
+    },
+    [walletAddress, dailyPlayMode, dailyCampaignId, refreshStreakStatus]
+  );
+
+  const handleStreakBrokenContinue = useCallback(() => {
+    if (walletAddress && streakStatus?.lastCheckInAt) {
+      markStreakBrokenSeen(walletAddress, streakStatus.lastCheckInAt);
+    }
+    setStreakBrokenDismissed(true);
+  }, [walletAddress, streakStatus?.lastCheckInAt]);
+
+  useEffect(() => {
+    setStreakBrokenDismissed(false);
+  }, [walletAddress, streakStatus?.lastCheckInAt]);
+
   const defaultName =
     profile?.name?.trim() || getCachedPlayerName()?.trim() || "";
 
@@ -199,6 +309,8 @@ export default function PlayerProfileProvider({
       isReady,
       updateWalletAddress,
       openOnboarding,
+      streakStatus,
+      refreshStreakStatus,
     }),
     [
       playerId,
@@ -208,6 +320,8 @@ export default function PlayerProfileProvider({
       isReady,
       updateWalletAddress,
       openOnboarding,
+      streakStatus,
+      refreshStreakStatus,
     ]
   );
 
@@ -245,6 +359,38 @@ export default function PlayerProfileProvider({
     setShowConnectWallet(false);
   }, []);
 
+  const solanaWallet =
+    getCachedSolanaAddress() || walletAddress || getCachedWallet() || "";
+
+  const previousBrokenDays = streakStatus?.currentDay ?? 0;
+  const lastBrokenCheckInAt = streakStatus?.lastCheckInAt ?? 0;
+  const streakBrokenVisible =
+    dailyGateResolved &&
+    dailyPlayMode === "streak" &&
+    !streakBrokenDismissed &&
+    Boolean(streakStatus?.streakWouldReset) &&
+    Boolean(solanaWallet) &&
+    !hasSeenStreakBroken(solanaWallet, lastBrokenCheckInAt);
+
+  const dailyShuffleVisible =
+    dailyGateResolved &&
+    dailyPlayMode === "shuffle" &&
+    checkInVisible &&
+    Boolean(solanaWallet) &&
+    !connectWalletVisible &&
+    !nameModalVisible &&
+    !onboardingVisible;
+
+  const dailyCheckInVisible =
+    dailyGateResolved &&
+    dailyPlayMode === "streak" &&
+    checkInVisible &&
+    !streakBrokenVisible &&
+    Boolean(solanaWallet) &&
+    !connectWalletVisible &&
+    !nameModalVisible &&
+    !onboardingVisible;
+
   return (
     <PlayerProfileContext.Provider value={value}>
       {children}
@@ -262,9 +408,29 @@ export default function PlayerProfileProvider({
       <ConnectWalletModal
         open={connectWalletVisible}
         onClose={handleConnectWalletClose}
-        onConnected={() => {
+        onConnected={(address) => {
           markMwaConnectPromptSeen();
+          void updateWalletAddress(address);
+          void refreshStreakStatus();
         }}
+      />
+      <DailyShuffleModal
+        open={dailyShuffleVisible}
+        walletAddress={solanaWallet}
+        campaignId={dailyCampaignId}
+        status={streakStatus}
+        onComplete={handleDailyComplete}
+      />
+      <DailyStreakBrokenModal
+        open={streakBrokenVisible}
+        previousDays={previousBrokenDays}
+        onContinue={handleStreakBrokenContinue}
+      />
+      <DailyCheckInModal
+        open={dailyCheckInVisible}
+        walletAddress={solanaWallet}
+        status={streakStatus}
+        onComplete={handleDailyComplete}
       />
     </PlayerProfileContext.Provider>
   );
