@@ -310,28 +310,47 @@ export async function upsertUserOnServer(
     throw new Error("A wallet address is required to save a player profile.");
   }
 
-  const existing = await fetchUserFromServer(wallet);
   const now = Date.now();
-  const stored: StoredUser = {
-    name: data.name.trim(),
-    walletAddress: wallet,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-  };
-
+  const name = data.name.trim();
   const db = await requireD1();
+
+  // Existing players: one UPDATE. New wallets fall through to a single INSERT.
+  const updated = await db
+    .prepare(
+      `UPDATE users SET name = ?, updated_at = ? WHERE wallet = ?
+       RETURNING wallet, name, created_at, updated_at`
+    )
+    .bind(name, now, wallet)
+    .first<{
+      wallet: string;
+      name: string;
+      created_at: number;
+      updated_at: number;
+    }>();
+
+  if (updated) {
+    return toPlayerProfile(wallet, {
+      name: updated.name,
+      walletAddress: wallet,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
+    })!;
+  }
+
   await db
     .prepare(
       `INSERT INTO users (wallet, name, created_at, updated_at)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(wallet) DO UPDATE SET
-         name = excluded.name,
-         updated_at = excluded.updated_at`
+       VALUES (?, ?, ?, ?)`
     )
-    .bind(wallet, stored.name, stored.createdAt, stored.updatedAt)
+    .bind(wallet, name, now, now)
     .run();
 
-  return toPlayerProfile(wallet, stored)!;
+  return toPlayerProfile(wallet, {
+    name,
+    walletAddress: wallet,
+    createdAt: now,
+    updatedAt: now,
+  })!;
 }
 
 export async function bootstrapUserOnServer(

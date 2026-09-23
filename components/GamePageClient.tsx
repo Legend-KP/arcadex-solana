@@ -9,6 +9,7 @@ import Leaderboard, { type LeaderboardMode } from "@/components/Leaderboard";
 import LoadingScreen from "@/components/LoadingScreen";
 import NoSparksModal from "@/components/NoSparksModal";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
+import { rememberRecentPlay } from "@/lib/recent-plays";
 import { useSparks } from "@/components/SparkProvider";
 import {
   getGameTutorialSeenKey,
@@ -57,6 +58,9 @@ export default function GamePageClient() {
         if (cancelled) return;
 
         setGame(nextGame);
+        if (nextGame && gameIsLive(nextGame)) {
+          rememberRecentPlay(nextGame.id);
+        }
 
         if (nextGame && gameIsLive(nextGame)) {
           fetch(`/api/games/${id}/play`, { method: "POST" }).catch(() => {

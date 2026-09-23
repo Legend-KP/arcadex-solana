@@ -15,19 +15,25 @@ interface GameCardProps {
   playCount?: number;
   /** Eager-load above-the-fold thumbs; lazy-load the rest. */
   priority?: boolean;
+  /** catalog = 2:3 portrait thumb. square = 1:1 logo for rails. */
+  variant?: "catalog" | "square";
+  countdownLabel?: string;
 }
 
 export default function GameCard({
   game,
   playCount = 0,
   priority = false,
+  variant = "catalog",
+  countdownLabel,
 }: GameCardProps) {
   const isLive = gameIsLive(game);
   const contestLive = gameHasContestLive(game);
+  const assetKind = variant === "square" ? "logo" : "thumbnail";
 
   const thumbCandidates = useMemo(
-    () => gameAssetCandidates(game, "thumbnail"),
-    [game]
+    () => gameAssetCandidates(game, assetKind),
+    [game, assetKind]
   );
   const logoCandidates = useMemo(
     () => gameAssetCandidates(game, "logo"),
@@ -92,8 +98,11 @@ export default function GameCard({
 
   const cardBody = (
     <>
-      <div className="thumb-wrap">
+      <div className={`thumb-wrap${variant === "square" ? " thumb-wrap--square" : ""}`}>
         {thumbContent}
+        {countdownLabel && (
+          <span className="game-card-countdown">{countdownLabel}</span>
+        )}
         {contestLive && (
           <span className="game-card-contest-badge" aria-label="Contest live">
             CONTEST LIVE
@@ -108,16 +117,19 @@ export default function GameCard({
 
       <div className="card-info">
         <p className="card-title">{game.name}</p>
-        <p className="card-plays">
-          {formatPlayCount(playCount)}{" "}
-          {playCount === 1 ? "play" : "plays"}
-        </p>
+        {variant === "catalog" && (
+          <p className="card-plays">
+            {formatPlayCount(playCount)}{" "}
+            {playCount === 1 ? "play" : "plays"}
+          </p>
+        )}
       </div>
     </>
   );
 
   const cardClass = [
     "game-card",
+    variant === "square" && "game-card--square",
     !isLive && "game-card--coming-soon",
     contestLive && "game-card--contest-live",
   ]

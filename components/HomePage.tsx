@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Game } from "@/types";
-import AppFooter from "@/components/AppFooter";
+import { useEffect, useMemo, useState } from "react";
+import AppDrawer, { AppView } from "@/components/AppDrawer";
+import AchievementsView from "@/components/AchievementsView";
+import ActivityLeaderboardPanel from "@/components/ActivityLeaderboardButton";
 import GameCard from "@/components/GameCard";
+import HomeFeed, { GameCatalog } from "@/components/HomeFeed";
 import Logo from "@/components/Logo";
 import SparkBatteryBar from "@/components/SparkBatteryBar";
-import ActivityLeaderboardButton from "@/components/ActivityLeaderboardButton";
+import { usePlayerProfile } from "@/components/PlayerProfileProvider";
+import { pingActivityVisit } from "@/lib/activity-client";
+import { formatContestCountdown } from "@/lib/contest";
+import { sortGames } from "@/lib/game-sort";
 import {
   readCachedGamesList,
   shouldBackgroundRefreshGamesList,
@@ -14,8 +19,17 @@ import {
 } from "@/lib/games-list-client-cache";
 import { fetchHomeShell } from "@/lib/home-client";
 import { getCachedWallet } from "@/lib/player-id";
+import { Game, gameHasContestLive, gameIsLive } from "@/types";
+
+const VIEW_TITLE: Record<Exclude<AppView, "home">, string> = {
+  games: "Games",
+  contests: "Contests",
+  leaderboard: "Global Leaderboard",
+  achievements: "Achievements",
+};
 
 export default function HomePage() {
+  const { walletAddress } = usePlayerProfile();
   const [games, setGames] = useState<Game[]>(() => {
     return readCachedGamesList()?.games ?? [];
   });
@@ -24,8 +38,10 @@ export default function HomePage() {
   });
   const [loading, setLoading] = useState(() => !readCachedGamesList());
   const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [view, setView] = useState<AppView>("home");
+  const [now, setNow] = useState(() => Date.now());
 
-  // Fetch games immediately — do not wait for wallet / streak / profile.
   useEffect(() => {
     let cancelled = false;
     const hadCache = Boolean(readCachedGamesList());
@@ -85,16 +101,40 @@ export default function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!walletAddress) return;
+    void pingActivityVisit(walletAddress);
+  }, [walletAddress]);
+
+  useEffect(() => {
+    if (view !== "contests") return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [view]);
+
+  const ordered = useMemo(() => sortGames(games), [games]);
+  const live = ordered.filter((game) => gameIsLive(game));
+  const contests = live.filter((game) => gameHasContestLive(game));
+
   return (
     <div className="home">
       <div className="home-ambient" aria-hidden />
       <div className="home-shell">
         <header className="topbar">
-          <Logo variant="header" />
-          <div className="topbar-actions">
-            <ActivityLeaderboardButton />
-            <SparkBatteryBar />
+          <div className="topbar-brand">
+            <button
+              type="button"
+              className="menu-btn"
+              aria-label="Open menu"
+              onClick={() => setDrawerOpen(true)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <Logo variant="header" />
           </div>
+          <SparkBatteryBar />
         </header>
 
         <main className="home-main">
@@ -110,24 +150,55 @@ export default function HomePage() {
                 <div key={i} className="game-card-skeleton" aria-hidden />
               ))}
             </div>
-          ) : games.length === 0 ? (
-            <p className="no-games">No games yet. Check back soon!</p>
+          ) : view === "home" ? (
+            <HomeFeed games={games} playCounts={playCounts} />
           ) : (
-            <div className="games-grid">
-              {games.map((game, index) => (
-                <GameCard
-                  key={game.id}
-                  game={game}
-                  playCount={playCounts[game.id] ?? 0}
-                  priority={index < 4}
+            <div className="home-view">
+              {view !== "achievements" && view !== "leaderboard" && (
+                <h2 className="home-section__title">{VIEW_TITLE[view]}</h2>
+              )}
+              {view === "games" && (
+                <GameCatalog
+                  games={live}
+                  playCounts={playCounts}
+                  empty="No live games yet."
                 />
-              ))}
+              )}
+              {view === "contests" &&
+                (contests.length === 0 ? (
+                  <p className="no-games">No live contests right now.</p>
+                ) : (
+                  <div className="games-grid">
+                    {contests.map((game) => (
+                      <GameCard
+                        key={game.id}
+                        game={game}
+                        variant="square"
+                        countdownLabel={
+                          game.contestEndsAt
+                            ? formatContestCountdown(game.contestEndsAt - now)
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                ))}
+              {view === "leaderboard" && <ActivityLeaderboardPanel />}
+              {view === "achievements" && <AchievementsView />}
             </div>
           )}
         </main>
-
-        <AppFooter />
       </div>
+
+      <AppDrawer
+        open={drawerOpen}
+        view={view}
+        onClose={() => setDrawerOpen(false)}
+        onNavigate={setView}
+        onOpenSparks={() => {
+          window.dispatchEvent(new Event("arcadex-open-sparks"));
+        }}
+      />
     </div>
   );
 }

@@ -12,7 +12,9 @@ interface PlayerNameModalProps {
   saving: boolean;
   error?: string;
   defaultName?: string;
+  intent?: "create" | "edit";
   onSubmit: (name: string) => void;
+  onClose?: () => void;
 }
 
 export default function PlayerNameModal({
@@ -20,7 +22,9 @@ export default function PlayerNameModal({
   saving,
   error,
   defaultName = "",
+  intent = "create",
   onSubmit,
+  onClose,
 }: PlayerNameModalProps) {
   const [name, setName] = useState(defaultName);
   const {
@@ -73,12 +77,16 @@ export default function PlayerNameModal({
         aria-labelledby="player-modal-title"
       >
         <Logo variant="login" />
-        <p className="player-modal-subtitle">Welcome to ArcadeX</p>
+        <p className="player-modal-subtitle">
+          {intent === "edit" ? "ArcadeX" : "Welcome to ArcadeX"}
+        </p>
         <h2 id="player-modal-title" className="player-modal-title">
-          Choose your player name
+          {intent === "edit" ? "Edit your name" : "Choose your player name"}
         </h2>
         <p className="player-modal-hint">
-          {native
+          {intent === "edit"
+            ? "This updates the name on your signed-in profile."
+            : native
             ? "Pick a name, then connect & sign in with your Solana wallet (free message — no SOL spent). Or continue as a guest."
             : "This name is saved on this device. Pick something fun — you can keep playing without a wallet."}
         </p>
@@ -102,7 +110,27 @@ export default function PlayerNameModal({
           {error && <p className="error-msg">{error}</p>}
           {connectError && <p className="error-msg">{connectError}</p>}
 
-          {native ? (
+          {intent === "edit" || !native ? (
+            <>
+              <button
+                type="submit"
+                className="player-modal-submit"
+                disabled={busy || !isValid}
+              >
+                {saving ? "Saving..." : intent === "edit" ? "Save" : "Continue"}
+              </button>
+              {intent === "edit" && onClose && (
+                <button
+                  type="button"
+                  className="connect-wallet-modal__skip"
+                  onClick={onClose}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+              )}
+            </>
+          ) : (
             <>
               {address ? (
                 <p className="connect-wallet-modal__status">
@@ -133,14 +161,6 @@ export default function PlayerNameModal({
                 {saving ? "Saving..." : "Continue without wallet"}
               </button>
             </>
-          ) : (
-            <button
-              type="submit"
-              className="player-modal-submit"
-              disabled={busy || !isValid}
-            >
-              {saving ? "Saving..." : "Continue"}
-            </button>
           )}
         </form>
       </div>

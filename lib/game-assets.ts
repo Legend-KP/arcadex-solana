@@ -134,13 +134,13 @@ export function gameAssetCandidates(
 
   const localFolder = resolveLocalGameFolder(game);
 
-  // Prefer bundled assets so they show even when remote URLs fail.
-  if (kind === "logo") {
-    push(resolveRootLogo(game) ?? undefined);
-  }
-
+  // Catalog thumbs prefer /thumbnails. Square rails prefer /games/.../logo.webp.
   if (localFolder) {
     pushLocalGameAssets(push, localFolder, kind);
+  }
+
+  if (kind === "logo") {
+    push(resolveRootLogo(game) ?? undefined);
   }
 
   push(field);

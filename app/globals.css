@@ -1147,7 +1147,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .game-card-skeleton {
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 2 / 3;
   border-radius: 18px;
   background: linear-gradient(
     90deg,
@@ -1205,7 +1205,7 @@ a { color: inherit; text-decoration: none; }
 
 .thumb-wrap {
   position: relative;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 2 / 3;
   width: 100%;
   flex: 0 0 auto;
   overflow: hidden;
@@ -3460,8 +3460,8 @@ a { color: inherit; text-decoration: none; }
 /* ?? Game card contest badge ??????????????????????????? */
 .game-card-contest-badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 10px;
+  left: 10px;
   z-index: 2;
   padding: 4px 8px;
   border-radius: 8px;
@@ -3685,7 +3685,7 @@ a { color: inherit; text-decoration: none; }
 
 .thumb-preview-wrap {
   width: 100px;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 2 / 3;
   border-radius: 12px;
   overflow: hidden;
   margin-top: 10px;
@@ -5287,3 +5287,295 @@ a { color: inherit; text-decoration: none; }
   opacity: 0.65;
   cursor: wait;
 }
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.menu-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.menu-btn span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: #0f172a;
+}
+
+.home-feed,
+.home-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 24px;
+}
+
+.home-section__title {
+  font-family: var(--font-head);
+  font-size: 18px;
+  color: #0f172a;
+  padding: 14px 16px 8px;
+}
+
+.home-rail {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 0 16px 6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.home-rail .game-card {
+  flex: 0 0 148px;
+  width: 148px;
+  scroll-snap-align: start;
+}
+
+.thumb-wrap--square {
+  aspect-ratio: 1 / 1;
+}
+
+.game-card-countdown {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.72);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.app-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.app-drawer {
+  width: min(320px, 86vw);
+  height: 100%;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 8px 0 28px rgba(15, 23, 42, 0.18);
+  padding: 18px 16px 16px;
+}
+
+.app-drawer__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.app-drawer__mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.app-drawer__who {
+  min-width: 0;
+  flex: 1;
+}
+
+.app-drawer__name {
+  font-family: var(--font-head);
+  font-size: 16px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-drawer__wallet {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.app-drawer__edit {
+  border: 1px solid rgba(214, 168, 75, 0.6);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.app-drawer__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 0;
+  flex: 1;
+}
+
+.app-drawer__item {
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+  padding: 12px 12px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  cursor: pointer;
+}
+.app-drawer__item.is-active {
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.app-drawer__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+.app-drawer__footer a,
+.app-drawer__footer button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #64748b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.activity-board {
+  padding: 8px 16px 24px;
+}
+
+.achievements {
+  padding: 0 16px 24px;
+}
+.achievements__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.achievements__head .home-section__title {
+  padding-left: 0;
+}
+.achievements__xp {
+  font-family: var(--font-head);
+  color: #b45309;
+}
+.achievements__error {
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.achievements__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.achievement-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.achievement-card__top,
+.achievement-card__progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.achievement-card__title {
+  font-weight: 800;
+}
+.achievement-card__reward,
+.achievement-card__progress,
+.achievement-card__desc {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+.achievement-card__desc {
+  margin: 4px 0;
+}
+.achievement-card__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.achievement-card__bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+}
+.achievement-card__claim {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(90deg, #7c3aed, #3b82f6);
+  cursor: pointer;
+}
+.achievement-card__claim:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.achievement-card__claimed {
+  font-size: 13px;
+  font-weight: 800;
+  color: #16a34a;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+.admin-tab {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.admin-tab.is-active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+

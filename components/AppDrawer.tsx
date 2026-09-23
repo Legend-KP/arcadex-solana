@@ -1,0 +1,144 @@
+"use client";
+
+import { useEffect } from "react";
+import {
+  FAQ_URL,
+  PRIVACY_POLICY_URL,
+  SUPPORT_URL,
+  TERMS_URL,
+} from "@/lib/app-footer-links";
+import { getCachedSolanaAddress, truncateSolanaAddress } from "@/lib/solana-address";
+import { usePlayerProfile } from "@/components/PlayerProfileProvider";
+
+export type AppView =
+  | "home"
+  | "games"
+  | "contests"
+  | "leaderboard"
+  | "achievements";
+
+interface AppDrawerProps {
+  open: boolean;
+  view: AppView;
+  onClose: () => void;
+  onNavigate: (view: AppView) => void;
+  onOpenSparks: () => void;
+}
+
+const NAV: { id: AppView | "sparks"; label: string }[] = [
+  { id: "home", label: "Home" },
+  { id: "games", label: "Games" },
+  { id: "contests", label: "Contests" },
+  { id: "leaderboard", label: "Global Leaderboard" },
+  { id: "sparks", label: "Sparks" },
+  { id: "achievements", label: "Achievements" },
+];
+
+export default function AppDrawer({
+  open,
+  view,
+  onClose,
+  onNavigate,
+  onOpenSparks,
+}: AppDrawerProps) {
+  const { playerName, walletAddress, openNameEditor, openOnboarding } =
+    usePlayerProfile();
+  const solana = getCachedSolanaAddress();
+  const address = walletAddress || solana || "";
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="app-drawer-backdrop" onClick={onClose} role="presentation">
+      <aside
+        className="app-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="app-drawer__brand">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/thumbnails/arcadeX.webp" alt="" className="app-drawer__mark" />
+          <div className="app-drawer__who">
+            <p className="app-drawer__name">{playerName || "Player"}</p>
+            <p className="app-drawer__wallet">
+              {address ? truncateSolanaAddress(address) : "No wallet yet"}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="app-drawer__edit"
+            onClick={() => {
+              onClose();
+              openNameEditor();
+            }}
+          >
+            Edit
+          </button>
+        </div>
+
+        <nav className="app-drawer__nav" aria-label="App">
+          {NAV.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`app-drawer__item${
+                item.id !== "sparks" && view === item.id ? " is-active" : ""
+              }`}
+              onClick={() => {
+                if (item.id === "sparks") {
+                  onClose();
+                  onOpenSparks();
+                  return;
+                }
+                onNavigate(item.id);
+                onClose();
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="app-drawer__footer">
+          <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer">
+            Privacy
+          </a>
+          <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">
+            Terms
+          </a>
+          <a href={FAQ_URL} target="_blank" rel="noopener noreferrer">
+            FAQ
+          </a>
+          <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
+            Support
+          </a>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              openOnboarding();
+            }}
+          >
+            Tutorial
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}

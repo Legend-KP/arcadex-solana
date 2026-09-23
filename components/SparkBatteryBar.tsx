@@ -73,6 +73,9 @@ export default function SparkBatteryBar() {
       sessionStorage.removeItem("openSparkPanel");
       setOpen(true);
     }
+    const openPanel = () => setOpen(true);
+    window.addEventListener("arcadex-open-sparks", openPanel);
+    return () => window.removeEventListener("arcadex-open-sparks", openPanel);
   }, []);
 
   useEffect(() => {

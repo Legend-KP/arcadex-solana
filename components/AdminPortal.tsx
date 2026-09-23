@@ -23,6 +23,7 @@ import {
   gameIsLive,
 } from "@/types";
 import AdminContestModal from "@/components/AdminContestModal";
+import AdminMissionsPanel from "@/components/AdminMissionsPanel";
 import Logo from "@/components/Logo";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "/";
@@ -48,6 +49,7 @@ export default function AdminPortal() {
   const [live, setLive] = useState(true);
 
   const [contestModalGame, setContestModalGame] = useState<Game | null>(null);
+  const [section, setSection] = useState<"games" | "achievements">("games");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -372,12 +374,44 @@ export default function AdminPortal() {
           ← Back
         </a>
         <h1 className="admin-heading">Admin Portal</h1>
+        <button
+          type="button"
+          className="admin-back"
+          onClick={() => setSection("achievements")}
+        >
+          Achievements
+        </button>
         <button className="logout-btn" onClick={handleLogout}>
           Lock 🔒
         </button>
       </header>
 
+      <div className="admin-tabs" role="tablist" aria-label="Admin sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "games"}
+          className={`admin-tab${section === "games" ? " is-active" : ""}`}
+          onClick={() => setSection("games")}
+        >
+          Games
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "achievements"}
+          className={`admin-tab${section === "achievements" ? " is-active" : ""}`}
+          onClick={() => setSection("achievements")}
+        >
+          Achievements
+        </button>
+      </div>
+
       <div className="admin-content">
+        {section === "achievements" ? (
+          <AdminMissionsPanel games={games} />
+        ) : (
+        <>
         <h2 className="admin-section-title">Add New Game</h2>
         <div className="add-game-card">
           <div className="form-group">
@@ -682,6 +716,8 @@ export default function AdminPortal() {
               )
             )}
           </div>
+        )}
+        </>
         )}
       </div>
 

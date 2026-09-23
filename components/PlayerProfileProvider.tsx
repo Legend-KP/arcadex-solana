@@ -52,6 +52,7 @@ import {
   fetchStreakStatus,
   type StreakStatus,
 } from "@/lib/streak-client";
+import { savePlayerProfile } from "@/lib/player-profile-client";
 import { grantGuestInfiniteSpark } from "@/lib/spark-client";
 import { PlayerProfile } from "@/types";
 
@@ -65,6 +66,7 @@ interface PlayerProfileContextValue {
   isReady: boolean;
   updateWalletAddress: (walletAddress: string) => Promise<void>;
   openOnboarding: () => void;
+  openNameEditor: () => void;
   streakStatus: StreakStatus | null;
   refreshStreakStatus: () => Promise<void>;
 }
@@ -103,6 +105,7 @@ export default function PlayerProfileProvider({
   );
   const [isReady, setIsReady] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [nameIntent, setNameIntent] = useState<"create" | "edit">("create");
   const [showConnectWallet, setShowConnectWallet] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
@@ -123,6 +126,12 @@ export default function PlayerProfileProvider({
 
   const openOnboarding = useCallback(() => {
     setShowOnboarding(true);
+  }, []);
+
+  const openNameEditor = useCallback(() => {
+    setError("");
+    setNameIntent("edit");
+    setShowModal(true);
   }, []);
 
   const handleOnboardingComplete = useCallback(() => {
@@ -258,6 +267,17 @@ export default function PlayerProfileProvider({
 
       const guestId = getOrCreateGuestId();
       const cachedWallet = getCachedWallet();
+      if (cachedWallet) {
+        const user = await savePlayerProfile(cachedWallet, trimmed, cachedWallet);
+        setCachedPlayerName(user.name);
+        setPlayerId(cachedWallet);
+        setWalletAddress(cachedWallet);
+        setProfile(user);
+        setShowModal(false);
+        setNameIntent("create");
+        return;
+      }
+
       setCachedPlayerName(trimmed);
       const guestProfile: PlayerProfile = {
         id: cachedWallet || guestId,
@@ -346,12 +366,13 @@ export default function PlayerProfileProvider({
     () => ({
       playerId,
       profile,
-      playerName: profile?.name ?? "",
+      playerName: profile?.name?.trim() || getCachedPlayerName()?.trim() || "",
       walletAddress,
       isGuest,
       isReady,
       updateWalletAddress,
       openOnboarding,
+      openNameEditor,
       streakStatus,
       refreshStreakStatus,
     }),
@@ -363,6 +384,7 @@ export default function PlayerProfileProvider({
       isReady,
       updateWalletAddress,
       openOnboarding,
+      openNameEditor,
       streakStatus,
       refreshStreakStatus,
     ]
@@ -446,7 +468,11 @@ export default function PlayerProfileProvider({
         saving={saving}
         error={error}
         defaultName={defaultName}
+        intent={nameIntent}
         onSubmit={handleSubmit}
+        onClose={
+          nameIntent === "edit" ? () => setShowModal(false) : undefined
+        }
       />
       <ConnectWalletModal
         open={connectWalletVisible}
