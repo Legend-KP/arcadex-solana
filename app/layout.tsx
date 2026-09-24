@@ -1,10 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AppProviders from "@/components/AppProviders";
 
 export const metadata: Metadata = {
   title: "ArcadeX",
   description: "Play fun mini-games on ArcadeX",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

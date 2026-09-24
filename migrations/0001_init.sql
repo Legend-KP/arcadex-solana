@@ -1,5 +1,5 @@
 ﻿-- ArcadeX hybrid player store (D1). Firestore keeps the games catalog.
--- Preview: arcadex-celo-preview. Production: arcadex-celo-prod (PLAYER_DATA_BACKEND=d1).
+-- Preview: arcadex-solana-preview. Production: arcadex-solana-prod (PLAYER_DATA_BACKEND=d1).
 
 CREATE TABLE IF NOT EXISTS users (
   wallet TEXT PRIMARY KEY NOT NULL,

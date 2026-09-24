@@ -1,5 +1,7 @@
 -- Achievements live in D1 only. XP changes when a player claims a mission.
--- Apply: npx wrangler d1 migrations apply arcadex-celo-preview --remote
+-- Apply to the Solana D1 databases:
+--   npx wrangler d1 migrations apply DB --remote --env preview
+--   npx wrangler d1 migrations apply DB --remote --env production
 
 ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0;
 
