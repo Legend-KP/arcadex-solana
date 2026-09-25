@@ -10,8 +10,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Keep the system clock and icons clear. WebViews often report inset 0. */
-  --app-safe-top: max(44px, env(safe-area-inset-top, 0px));
+  --app-safe-top: env(safe-area-inset-top, 0px);
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   --bg: #f2f2f2;
   --surface: #ffffff;
@@ -47,7 +46,7 @@
 }
 
 html {
-  background: #0b0b10;
+  background: #0e1016;
 }
 
 body {
@@ -56,19 +55,6 @@ body {
   font-family: var(--font-body);
   min-height: 100dvh;
   overflow-x: hidden;
-  padding-top: var(--app-safe-top);
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--app-safe-top);
-  background: #0b0b10;
-  z-index: 400;
-  pointer-events: none;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -77,8 +63,11 @@ a { color: inherit; text-decoration: none; }
 .home {
   position: relative;
   isolation: isolate;
-  min-height: calc(100dvh - var(--app-safe-top));
-  background:
+  min-height: 100dvh;
+  padding-top: var(--app-safe-top);
+  background-color: transparent;
+  background-clip: content-box;
+  background-image:
     radial-gradient(ellipse 90% 55% at 12% -8%, rgba(251, 191, 36, 0.16), transparent 55%),
     radial-gradient(ellipse 70% 50% at 96% 4%, rgba(59, 130, 246, 0.12), transparent 50%),
     radial-gradient(ellipse 80% 45% at 50% 100%, rgba(14, 165, 233, 0.08), transparent 55%),
@@ -112,6 +101,7 @@ a { color: inherit; text-decoration: none; }
 
 .home-main {
   flex: 1 1 auto;
+  padding-top: 28px;
 }
 
 .topbar {
@@ -122,11 +112,16 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
-  background: rgba(247, 250, 255, 0.78);
+  min-height: 76px;
+  margin: 0 12px;
+  padding: 12px 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.8) inset;
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .topbar .spark-battery-wrap {
@@ -1162,8 +1157,8 @@ a { color: inherit; text-decoration: none; }
 .games-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 14px;
-  padding: 14px 16px 20px;
+  gap: 20px;
+  padding: 0 24px;
 }
 
 .game-card-skeleton {
@@ -5342,22 +5337,22 @@ a { color: inherit; text-decoration: none; }
 .home-view {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-bottom: 24px;
+  gap: 52px;
+  padding-bottom: 40px;
 }
 
 .home-section__title {
   font-family: var(--font-head);
   font-size: 18px;
   color: #0f172a;
-  padding: 14px 16px 8px;
+  padding: 0 24px 16px;
 }
 
 .home-rail {
   display: flex;
-  gap: 12px;
+  gap: 20px;
   overflow-x: auto;
-  padding: 0 16px 6px;
+  padding: 0 24px 4px;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
@@ -5614,7 +5609,8 @@ a { color: inherit; text-decoration: none; }
     max-width: none;
   }
   .topbar {
-    padding: calc(8px + var(--app-safe-top)) 12px 8px;
+    min-height: 64px;
+    padding: 8px 16px;
   }
   .logo-wrap--header,
   .logo-wrap--header .logo-img {
