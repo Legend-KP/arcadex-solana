@@ -2,6 +2,8 @@
  * Fail closed on missing secrets — never boot an insecure "trust the caller" mode.
  */
 
+import { assertNotCeloFirebase } from "@/lib/solana-data-plane";
+
 function isProductionRuntime(): boolean {
   return (
     process.env.NODE_ENV === "production" ||
@@ -40,6 +42,7 @@ export function getMissingRequiredSecrets(): string[] {
  * Safe to call on Worker/isolate boot and before wallet auth.
  */
 export function assertRequiredSecrets(): void {
+  assertNotCeloFirebase();
   const missing = getMissingRequiredSecrets();
   if (missing.length === 0) return;
 

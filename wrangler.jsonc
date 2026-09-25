@@ -25,8 +25,8 @@
 	 *   npm run deploy:preview
 	 *   npm run deploy:production
 	 *
-	 * PLAYER_DATA_BACKEND=d1 is only set on preview until you create a prod D1
-	 * database, run migrations, then flip production vars to "d1".
+	 * D1 and KV ids below are ArcadeX Solana only.
+	 * Never bind arcadex-celo-preview / arcadex-celo-prod or the Celo KV namespaces.
 	 */
 	"env": {
 		"preview": {
@@ -34,7 +34,9 @@
 			"vars": {
 				"PLAYER_DATA_BACKEND": "d1",
 				"DAILY_PLAY_MODE": "shuffle",
-				"NEXT_PUBLIC_DAILY_PLAY_MODE": "shuffle"
+				"NEXT_PUBLIC_DAILY_PLAY_MODE": "shuffle",
+				"D1_DATABASE_ID": "251e9f61-6c6e-4cb6-980a-f489feb43a70",
+				"KV_NAMESPACE_ID": "403653bebdd24f1c8c8b50ff52b61709"
 			},
 			"services": [
 				{
@@ -45,14 +47,14 @@
 			"kv_namespaces": [
 				{
 					"binding": "RATE_LIMIT_KV",
-					"id": "afc93dfed6514875924b2511a39412cb"
+					"id": "403653bebdd24f1c8c8b50ff52b61709"
 				}
 			],
 			"d1_databases": [
 				{
 					"binding": "DB",
 					"database_name": "arcadex-solana-preview",
-					"database_id": "81f8cd4f-6927-4561-861b-e5aa12eba7a6",
+					"database_id": "251e9f61-6c6e-4cb6-980a-f489feb43a70",
 					"migrations_dir": "migrations",
 					"preview_database_id": "arcadex-solana-preview-local"
 				}
@@ -63,7 +65,9 @@
 			"vars": {
 				"PLAYER_DATA_BACKEND": "d1",
 				"DAILY_PLAY_MODE": "shuffle",
-				"NEXT_PUBLIC_DAILY_PLAY_MODE": "shuffle"
+				"NEXT_PUBLIC_DAILY_PLAY_MODE": "shuffle",
+				"D1_DATABASE_ID": "b167f6b7-3228-4537-a68e-cbdca4194502",
+				"KV_NAMESPACE_ID": "d2e29af34e3541df9fdde0b527544ded"
 			},
 			"services": [
 				{
@@ -74,14 +78,14 @@
 			"kv_namespaces": [
 				{
 					"binding": "RATE_LIMIT_KV",
-					"id": "55bfb54188784fac966da56f42c9fce6"
+					"id": "d2e29af34e3541df9fdde0b527544ded"
 				}
 			],
 			"d1_databases": [
 				{
 					"binding": "DB",
 					"database_name": "arcadex-solana-prod",
-					"database_id": "71aee228-0f98-412f-a5eb-6119c39cb5c3",
+					"database_id": "b167f6b7-3228-4537-a68e-cbdca4194502",
 					"migrations_dir": "migrations"
 				}
 			]

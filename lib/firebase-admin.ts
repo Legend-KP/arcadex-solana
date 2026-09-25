@@ -1,5 +1,6 @@
 import { SignJWT, importPKCS8 } from "jose";
 import { fetchWithTimeout } from "@/lib/firebase-fetch";
+import { assertNotCeloFirebase } from "@/lib/solana-data-plane";
 
 const FIREBASE_SCOPES =
   "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email";
@@ -15,6 +16,7 @@ let cachedPrivateKey: Awaited<ReturnType<typeof importPKCS8>> | null = null;
 let warnedLegacyRtdbSecretConfigured = false;
 
 export function getProjectId(): string {
+  assertNotCeloFirebase();
   return (
     process.env.FIREBASE_PROJECT_ID ??
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ??
@@ -37,6 +39,7 @@ export function getServiceAccount() {
 }
 
 export function getDatabaseUrl(): string {
+  assertNotCeloFirebase();
   const explicit = process.env.FIREBASE_DATABASE_URL?.trim();
   if (explicit) return explicit.replace(/\/$/, "");
 
@@ -132,6 +135,7 @@ async function mintFirebaseAccessToken(): Promise<string> {
  * A failed mint clears the in-flight promise so the next caller can retry.
  */
 export async function getFirebaseAccessToken(): Promise<string> {
+  assertNotCeloFirebase();
   if (cachedAccessToken && Date.now() < cachedAccessToken.expiresAt) {
     return cachedAccessToken.token;
   }

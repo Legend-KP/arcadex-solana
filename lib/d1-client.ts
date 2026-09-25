@@ -5,6 +5,7 @@
  * Production and preview set PLAYER_DATA_BACKEND=d1 in wrangler.jsonc.
  */
 
+import { assertSolanaD1Id } from "@/lib/solana-data-plane";
 import { getWorkerContext } from "@/lib/worker-context";
 
 export type D1PreparedStatement = {
@@ -30,7 +31,10 @@ export type D1DatabaseLike = {
 type EnvWithD1 = {
   DB?: D1DatabaseLike;
   PLAYER_DATA_BACKEND?: string;
+  D1_DATABASE_ID?: string;
 };
+
+let verifiedD1: Promise<D1DatabaseLike | null> | null = null;
 
 async function getEnv(): Promise<EnvWithD1 | null> {
   const ctx = await getWorkerContext();
@@ -50,10 +54,33 @@ export async function useD1PlayerData(): Promise<boolean> {
   return backend === "d1";
 }
 
-export async function getD1(): Promise<D1DatabaseLike | null> {
+async function openSolanaD1(): Promise<D1DatabaseLike | null> {
   if (!(await useD1PlayerData())) return null;
   const env = await getEnv();
-  return env?.DB ?? null;
+  const db = env?.DB;
+  if (!db) return null;
+
+  assertSolanaD1Id(env?.D1_DATABASE_ID ?? process.env.D1_DATABASE_ID);
+
+  const row = await db
+    .prepare("SELECT plane FROM data_plane WHERE id = 1")
+    .first<{ plane?: string }>();
+  if (row?.plane !== "solana") {
+    throw new Error(
+      "ArcadeX Solana refuses this D1 database. data_plane is not solana."
+    );
+  }
+  return db;
+}
+
+export async function getD1(): Promise<D1DatabaseLike | null> {
+  if (!verifiedD1) {
+    verifiedD1 = openSolanaD1().catch((err) => {
+      verifiedD1 = null;
+      throw err;
+    });
+  }
+  return verifiedD1;
 }
 
 export async function requireD1(): Promise<D1DatabaseLike> {

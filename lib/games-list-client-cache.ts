@@ -1,6 +1,6 @@
 import { Game } from "@/types";
 
-const STORAGE_KEY = "arcadex_games_list_v1";
+const STORAGE_KEY = "arcadex_solana_games_list_v1";
 const SESSION_FRESH_KEY = "arcadex_games_list_fetched_at";
 
 /** Background refresh interval for the home games list. */
