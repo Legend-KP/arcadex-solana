@@ -15,10 +15,12 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
-  TOKEN_PROGRAM_ID,
+  unpackAccount,
 } from "@solana/spl-token";
 import bs58 from "bs58";
 import {
@@ -61,6 +63,14 @@ export function getPrizeWalletAddress(): string | null {
   }
 }
 
+function resolveTokenProgramId(mintOwner: PublicKey): PublicKey {
+  if (mintOwner.equals(TOKEN_2022_PROGRAM_ID)) return TOKEN_2022_PROGRAM_ID;
+  if (mintOwner.equals(TOKEN_PROGRAM_ID)) return TOKEN_PROGRAM_ID;
+  throw new Error(
+    `USDT mint is owned by unexpected program ${mintOwner.toBase58()}.`
+  );
+}
+
 /**
  * Send `amount` USDT (human units) from the prize wallet to `toWallet`.
  * Creates the destination ATA if needed (prize wallet pays rent).
@@ -80,21 +90,72 @@ export async function sendPrizeUsdt(opts: {
   });
   const mint = new PublicKey(SOLANA_USDT_MINT);
   const destOwner = new PublicKey(opts.toWallet);
+  const atoms = BigInt(usdtToBaseUnits(opts.amount));
+
+  const mintInfo = await connection.getAccountInfo(mint, "confirmed");
+  if (!mintInfo) {
+    throw new Error("USDT mint account not found on Solana RPC.");
+  }
+  const tokenProgramId = resolveTokenProgramId(mintInfo.owner);
+
   const sourceAta = getAssociatedTokenAddressSync(
     mint,
     payer.publicKey,
     false,
-    TOKEN_PROGRAM_ID
+    tokenProgramId
   );
   const destAta = getAssociatedTokenAddressSync(
     mint,
     destOwner,
     false,
-    TOKEN_PROGRAM_ID
+    tokenProgramId
   );
-  const atoms = usdtToBaseUnits(opts.amount);
 
-  const destInfo = await connection.getAccountInfo(destAta);
+  const [sourceInfo, destInfo, solLamports] = await Promise.all([
+    connection.getAccountInfo(sourceAta, "confirmed"),
+    connection.getAccountInfo(destAta, "confirmed"),
+    connection.getBalance(payer.publicKey, "confirmed"),
+  ]);
+
+  if (!sourceInfo) {
+    throw new Error(
+      `Prize wallet has no USDT token account. Fund ${payer.publicKey.toBase58()} with USDT on mint ${SOLANA_USDT_MINT}.`
+    );
+  }
+  if (!sourceInfo.owner.equals(tokenProgramId)) {
+    throw new Error(
+      "Prize wallet USDT account uses a different token program than the mint."
+    );
+  }
+
+  let sourceAmount: bigint;
+  try {
+    sourceAmount = unpackAccount(sourceAta, sourceInfo, tokenProgramId).amount;
+  } catch {
+    throw new Error(
+      "Prize wallet USDT account data is invalid. Recreate the prize ATA for USDT."
+    );
+  }
+
+  if (sourceAmount < atoms) {
+    const have = Number(sourceAmount) / 10 ** SOLANA_STABLE_DECIMALS;
+    throw new Error(
+      `Prize wallet USDT balance too low (has ${have}, needs ${opts.amount}).`
+    );
+  }
+
+  const needAtaCreate =
+    !destInfo || !destInfo.owner.equals(tokenProgramId);
+  // ATA create (~0.002) + fee buffer
+  const minSol = needAtaCreate ? 5_000_000 : 50_000;
+  if (solLamports < minSol) {
+    throw new Error(
+      `Prize wallet needs more SOL for fees${
+        needAtaCreate ? " and ATA rent" : ""
+      } (has ${(solLamports / 1e9).toFixed(4)} SOL).`
+    );
+  }
+
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhash("confirmed");
 
@@ -104,14 +165,16 @@ export async function sendPrizeUsdt(opts: {
     lastValidBlockHeight,
   });
 
-  if (!destInfo) {
+  // Always idempotent-create when missing/invalid — avoids InvalidAccountData
+  // when a stale non-token account sits at the ATA address.
+  if (needAtaCreate) {
     tx.add(
       createAssociatedTokenAccountIdempotentInstruction(
         payer.publicKey,
         destAta,
         destOwner,
         mint,
-        TOKEN_PROGRAM_ID
+        tokenProgramId
       )
     );
   }
@@ -125,19 +188,29 @@ export async function sendPrizeUsdt(opts: {
       atoms,
       SOLANA_STABLE_DECIMALS,
       [],
-      TOKEN_PROGRAM_ID
+      tokenProgramId
     )
   );
 
-  const signature = await sendAndConfirmTransaction(connection, tx, [payer], {
-    commitment: "confirmed",
-    maxRetries: 3,
-  });
+  try {
+    const signature = await sendAndConfirmTransaction(connection, tx, [payer], {
+      commitment: "confirmed",
+      maxRetries: 3,
+    });
 
-  return {
-    signature,
-    from: payer.publicKey.toBase58(),
-    to: opts.toWallet,
-    amount: opts.amount,
-  };
+    return {
+      signature,
+      from: payer.publicKey.toBase58(),
+      to: opts.toWallet,
+      amount: opts.amount,
+    };
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    if (/invalid account data/i.test(raw)) {
+      throw new Error(
+        `USDT transfer failed (invalid token account). Check prize wallet USDT ATA for mint ${SOLANA_USDT_MINT}. ${raw}`
+      );
+    }
+    throw err instanceof Error ? err : new Error(raw);
+  }
 }

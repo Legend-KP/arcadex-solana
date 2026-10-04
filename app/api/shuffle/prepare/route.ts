@@ -14,6 +14,7 @@ import {
   usdtToMicro,
 } from "@/lib/shuffle-outcomes";
 import {
+  getOpenShufflePending,
   getShuffleUsdtBudgetRemainingUsdt,
   hasCompletedShuffleToday,
   outcomePayloadFromDef,
@@ -57,10 +58,26 @@ export async function POST(request: Request) {
       return rateLimitResponse();
     }
 
+    // Resume an unclaimed prize from the last 24h instead of dealing a new one.
+    const open = await getOpenShufflePending(wallet, campaignId);
+    if (open) {
+      return NextResponse.json({
+        ok: true,
+        campaignId,
+        nonce: open.nonce,
+        outcome: open.payload.outcome,
+        theater: getShuffleTheaterCards(),
+        needsClaim:
+          open.payload.outcome.type === "usdt" ||
+          open.payload.outcome.type === "spark",
+        resumed: true,
+      });
+    }
+
     if (await hasCompletedShuffleToday(wallet, campaignId)) {
       return NextResponse.json(
         {
-          error: "Already shuffled today. Come back after the daily interval.",
+          error: "Already shuffled in the last 24 hours. Come back later.",
           code: "TOO_SOON",
         },
         { status: 409 }

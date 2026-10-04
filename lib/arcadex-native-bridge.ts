@@ -73,6 +73,51 @@ function postToNative(payload: Record<string, unknown>): void {
   window.ReactNativeWebView.postMessage(JSON.stringify(payload));
 }
 
+/**
+ * Ask the Expo GameScreen to close (native "← Games" chrome).
+ * Returns true when the message was posted; false when not in the native shell.
+ */
+export function requestNativeLeaveGame(opts?: {
+  openSparks?: boolean;
+}): boolean {
+  if (typeof window === "undefined" || !window.ReactNativeWebView) {
+    return false;
+  }
+  if (!isArcadexNativeShell()) return false;
+  try {
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({
+        source: "arcadex-web",
+        type: "LEAVE_GAME",
+        openSparks: Boolean(opts?.openSparks),
+      })
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Leave a game route for the arcade home.
+ * In the native shell, never router.push("/") inside the game WebView — that
+ * nests the home UI under the BaseDrop / ← Games chrome.
+ */
+export function leaveGameToHome(
+  navigateHome: () => void,
+  opts?: { openSparks?: boolean }
+): void {
+  if (opts?.openSparks && typeof window !== "undefined") {
+    try {
+      sessionStorage.setItem("openSparkPanel", "1");
+    } catch {
+      /* ignore */
+    }
+  }
+  if (requestNativeLeaveGame(opts)) return;
+  navigateHome();
+}
+
 function waitForNativeResult<T extends NativeBridgeMessage>(
   type: T["type"],
   requestId: string,

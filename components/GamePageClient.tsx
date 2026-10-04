@@ -9,6 +9,7 @@ import Leaderboard, { type LeaderboardMode } from "@/components/Leaderboard";
 import LoadingScreen from "@/components/LoadingScreen";
 import NoSparksModal from "@/components/NoSparksModal";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
+import { leaveGameToHome } from "@/lib/arcadex-native-bridge";
 import { rememberRecentPlay } from "@/lib/recent-plays";
 import { useSparks } from "@/components/SparkProvider";
 import {
@@ -169,7 +170,7 @@ export default function GamePageClient() {
         <button
           type="button"
           className="game-menu-btn game-menu-btn--back"
-          onClick={() => router.push("/")}
+          onClick={() => leaveGameToHome(() => router.push("/"))}
         >
           Back
         </button>
@@ -179,8 +180,7 @@ export default function GamePageClient() {
 
   function handleGetSpark() {
     setNoSparksOpen(false);
-    sessionStorage.setItem("openSparkPanel", "1");
-    router.push("/");
+    leaveGameToHome(() => router.push("/"), { openSparks: true });
   }
 
   function openLeaderboard(mode: LeaderboardMode) {

@@ -30,6 +30,8 @@ export type ShufflePrepareResult = {
   };
   theater: ShuffleTheaterCard[];
   needsClaim: boolean;
+  /** True when returning an unclaimed prize from the last 24h. */
+  resumed?: boolean;
 };
 
 export type ShuffleClaimResult = {
@@ -102,7 +104,7 @@ export async function performDailyShuffle(
 ): Promise<ShufflePrepareResult> {
   if (hasShuffleDoneToday(walletAddress, campaignId)) {
     throw new Error(
-      "Already shuffled today. Come back after the daily interval."
+      "Already shuffled in the last 24 hours. Come back later."
     );
   }
   const prepare = await prepareDailyShuffle(walletAddress, campaignId);

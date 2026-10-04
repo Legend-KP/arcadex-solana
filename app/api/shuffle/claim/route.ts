@@ -12,7 +12,6 @@ import {
   confirmShuffleUsdtBudget,
   consumeShufflePending,
   getShufflePending,
-  hasCompletedShuffleToday,
   markShuffleCompletedToday,
   shuffleUsdtReservationKey,
 } from "@/lib/daily-play-server";
@@ -128,16 +127,6 @@ export async function POST(request: Request) {
           ? await createWalletSessionToken(wallet)
           : null,
       });
-    }
-
-    if (await hasCompletedShuffleToday(wallet, campaignId)) {
-      return NextResponse.json(
-        {
-          error: "Already shuffled today. Come back after the daily interval.",
-          code: "TOO_SOON",
-        },
-        { status: 409 }
-      );
     }
 
     const outcome = pending.payload.outcome;

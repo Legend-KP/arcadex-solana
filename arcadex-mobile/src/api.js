@@ -25,20 +25,53 @@ export async function fetchGames() {
   };
 }
 
-export async function fetchActivityLeaderboard() {
-  const res = await fetch(`${apiBase()}/api/leaderboard/activity`, {
-    cache: "no-store",
-  });
+export async function fetchActivityLeaderboard(walletAddress) {
+  const params = new URLSearchParams();
+  if (walletAddress) params.set("wallet", walletAddress);
+  params.set("week", "current");
+  const qs = params.toString();
+  const res = await fetch(
+    `${apiBase()}/api/leaderboard/activity${qs ? `?${qs}` : ""}`,
+    { cache: "no-store" }
+  );
   const data = await parseJson(res);
-  return Array.isArray(data.entries) ? data.entries : [];
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  return {
+    weekId: data.weekId || "",
+    startsAt: data.startsAt ?? 0,
+    endsAt: data.endsAt ?? 0,
+    endsAtMs: data.endsAtMs ?? data.endsAt ?? 0,
+    resetsIn: data.resetsIn ?? null,
+    entries,
+    totalParticipants: Math.max(
+      Number(data.totalParticipants ?? 0) || 0,
+      entries.length
+    ),
+    me: data.me ?? null,
+  };
+}
+
+export function formatActivityCountdown(remainingMs) {
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (days > 0) {
+    return `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+  }
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 export function logoUrl() {
-  return `${apiBase()}/arcadeX.webp`;
+  return `${apiBase()}/logo.png`;
 }
 
 export function logoFallbackUrl() {
-  return `${apiBase()}/arcadeX.webp`;
+  return `${apiBase()}/logo.png`;
 }
 
 export async function createWalletSession({

@@ -213,25 +213,20 @@ export default function PlayerProfileProvider({
           });
           setStreakStatus(status);
           if (!status.canCheckIn) {
-            markShuffleDoneToday(wallet, config.campaignId);
+            markShuffleDoneToday(
+              wallet,
+              config.campaignId,
+              status.lastCheckInAt || Date.now()
+            );
             setCheckInVisible(false);
           } else {
             setCheckInVisible(true);
           }
         } catch (err) {
-          // Don't hide the jackpot if status is briefly broken (e.g. migration).
-          console.warn("shuffle status failed; showing UI anyway", err);
-          setStreakStatus({
-            walletAddress: wallet,
-            campaignId: config.campaignId,
-            currentDay: 0,
-            requiredDays: 1,
-            lastCheckInAt: 0,
-            canCheckIn: true,
-            streakWouldReset: false,
-            configured: true,
-          });
-          setCheckInVisible(true);
+          // Fail closed: never re-show jackpot on status errors (prevents
+          // multiple plays within 24h when the API is briefly down).
+          console.warn("shuffle status failed; keeping jackpot hidden", err);
+          setCheckInVisible(false);
         }
       } else {
         const status = await fetchStreakStatus(wallet, config.campaignId, {

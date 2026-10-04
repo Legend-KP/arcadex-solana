@@ -36,6 +36,7 @@ import {
   sortGames,
 } from "../game-utils";
 import { colors, spacing } from "../theme";
+import WeeklyXpBoard from "./WeeklyXpBoard";
 
 const VIEWABILITY_CONFIG = {
   itemVisiblePercentThreshold: 15,
@@ -88,13 +89,15 @@ function PreviewVideo({ uri, onError }) {
   }, [player]);
 
   return (
-    <VideoView
-      player={player}
-      style={styles.catalogVideo}
-      contentFit="cover"
-      nativeControls={false}
-      pointerEvents="none"
-    />
+    <View style={styles.catalogVideo} pointerEvents="none">
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        nativeControls={false}
+        surfaceType="textureView"
+      />
+    </View>
   );
 }
 
@@ -241,7 +244,16 @@ const DRAWER_NAV = [
   { id: "achievements", label: "Achievements" },
 ];
 
-function MenuDrawer({ visible, session, onClose, onWallet, onSparks }) {
+function MenuDrawer({
+  visible,
+  session,
+  activeView,
+  onClose,
+  onWallet,
+  onSparks,
+  onEditName,
+  onNavigate,
+}) {
   const insets = useSafeAreaInsets();
   const [logoSrc, setLogoSrc] = useState(logoUrl());
   const displayName =
@@ -273,7 +285,8 @@ function MenuDrawer({ visible, session, onClose, onWallet, onSparks }) {
             style={styles.drawerProfile}
             onPress={() => {
               onClose();
-              onWallet();
+              if (address) onEditName?.();
+              else onWallet();
             }}
           >
             <View style={styles.drawerAvatar}>
@@ -296,7 +309,7 @@ function MenuDrawer({ visible, session, onClose, onWallet, onSparks }) {
 
           <View style={styles.drawerNav}>
             {DRAWER_NAV.map((item) => {
-              const active = item.id === "home";
+              const active = item.id !== "sparks" && activeView === item.id;
               return (
                 <Pressable
                   key={item.id}
@@ -307,10 +320,7 @@ function MenuDrawer({ visible, session, onClose, onWallet, onSparks }) {
                       onSparks();
                       return;
                     }
-                    if (item.id === "home") {
-                      onClose();
-                      return;
-                    }
+                    onNavigate?.(item.id);
                     onClose();
                   }}
                 >
@@ -353,6 +363,7 @@ export default function HomeScreen({
   sparks,
   onOpenWallet,
   onOpenSparks,
+  onEditName,
   onOpenGame,
   onReady,
 }) {
@@ -367,11 +378,12 @@ export default function HomeScreen({
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [activeView, setActiveView] = useState("home");
   const [sortMode, setSortMode] = useState("default");
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [continueOnly, setContinueOnly] = useState(false);
-  const [logoSrc, setLogoSrc] = useState(logoUrl());
   const [visibleIds, setVisibleIds] = useState(() => new Set());
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -412,12 +424,14 @@ export default function HomeScreen({
         const [catalog, recent, lb] = await Promise.all([
           fetchGames(),
           readRecentPlayIds(),
-          fetchActivityLeaderboard().catch(() => []),
+          fetchActivityLeaderboard(session?.address).catch(() => ({
+            entries: [],
+          })),
         ]);
         setGames((catalog.games || []).filter((g) => g.active !== false));
         setPlayCounts(catalog.playCounts || {});
         setRecentIds(recent);
-        setWinners(lb);
+        setWinners(Array.isArray(lb?.entries) ? lb.entries : []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not load games.");
       } finally {
@@ -426,7 +440,7 @@ export default function HomeScreen({
         onReady?.();
       }
     },
-    [onReady]
+    [onReady, session?.address]
   );
 
   useEffect(() => {
@@ -452,11 +466,16 @@ export default function HomeScreen({
   }, [live, recentIds]);
 
   const catalog = useMemo(() => {
-    let list = continueOnly ? continuePlaying : live;
+    let list =
+      activeView === "contests"
+        ? contests
+        : continueOnly
+          ? continuePlaying
+          : live;
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((g) => String(g.name || "").toLowerCase().includes(q));
     return list;
-  }, [continueOnly, continuePlaying, live, query]);
+  }, [activeView, contests, continueOnly, continuePlaying, live, query]);
 
   const sparkLabel = sparks?.hasInfinite
     ? "∞"
@@ -478,6 +497,23 @@ export default function HomeScreen({
           ? "Newest"
           : "Sort";
 
+  const handleDrawerNavigate = (id) => {
+    if (id === "leaderboard") {
+      setBoardOpen(true);
+      setActiveView("leaderboard");
+      return;
+    }
+    if (id === "achievements") {
+      setActiveView("achievements");
+      return;
+    }
+    setActiveView(id === "games" || id === "contests" ? id : "home");
+    setContinueOnly(false);
+    setQuery("");
+    setSearchOpen(false);
+    listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
       <View style={styles.topbar}>
@@ -494,10 +530,10 @@ export default function HomeScreen({
             <View style={styles.menuBar} />
           </Pressable>
           <Image
-            source={{ uri: logoSrc }}
-            style={styles.logo}
+            source={{ uri: logoUrl() }}
+            style={styles.wordmarkLogo}
             resizeMode="contain"
-            onError={() => setLogoSrc(logoFallbackUrl())}
+            accessibilityLabel="ArcadeX"
           />
         </View>
         <View style={styles.topbarRight}>
@@ -505,7 +541,8 @@ export default function HomeScreen({
             style={styles.xpChip}
             onPress={() => {
               Haptics.selectionAsync();
-              onOpenWallet();
+              setBoardOpen(true);
+              setActiveView("leaderboard");
             }}
           >
             <Text style={styles.xpChipText}>🏆 XP</Text>
@@ -538,10 +575,12 @@ export default function HomeScreen({
       ) : (
         <FlatList
           ref={listRef}
-          data={catalog}
+          data={activeView === "achievements" ? [] : catalog}
           keyExtractor={(item) => item.id}
           numColumns={2}
-          columnWrapperStyle={styles.gridRow}
+          columnWrapperStyle={
+            activeView === "achievements" ? undefined : styles.gridRow
+          }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             paddingBottom: insets.bottom + 28,
@@ -558,7 +597,17 @@ export default function HomeScreen({
           }
           ListHeaderComponent={
             <View>
-              {contests.length > 0 ? (
+              {activeView === "achievements" ? (
+                <View style={styles.viewBanner}>
+                  <Text style={styles.viewBannerTitle}>Achievements</Text>
+                  <Text style={styles.viewBannerBody}>
+                    Achievement progress unlocks as you play. Open a game to
+                    start earning.
+                  </Text>
+                </View>
+              ) : null}
+
+              {activeView === "home" && contests.length > 0 ? (
                 <View style={styles.section}>
                   <View style={styles.sectionTitleRow}>
                     <Text style={styles.sectionTitle}>LIVE CONTESTS</Text>
@@ -583,10 +632,16 @@ export default function HomeScreen({
                 </View>
               ) : null}
 
+              {activeView !== "achievements" ? (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { paddingHorizontal: spacing.lg }]}>
-                  ALL GAMES
+                  {activeView === "contests"
+                    ? "CONTESTS"
+                    : activeView === "games"
+                      ? "GAMES"
+                      : "ALL GAMES"}
                 </Text>
+                {activeView !== "contests" ? (
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -632,7 +687,8 @@ export default function HomeScreen({
                     </Text>
                   </Pressable>
                 </ScrollView>
-                {searchOpen ? (
+                ) : null}
+                {searchOpen && activeView !== "contests" ? (
                   <TextInput
                     value={query}
                     onChangeText={setQuery}
@@ -643,13 +699,18 @@ export default function HomeScreen({
                   />
                 ) : null}
               </View>
+              ) : null}
             </View>
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              {continueOnly
-                ? "Play a game to see it here."
-                : "No games yet. Check back soon!"}
+              {activeView === "achievements"
+                ? "Play games to unlock achievements."
+                : activeView === "contests"
+                  ? "No live contests right now."
+                  : continueOnly
+                    ? "Play a game to see it here."
+                    : "No games yet. Check back soon!"}
             </Text>
           }
           renderItem={({ item }) => (
@@ -667,9 +728,21 @@ export default function HomeScreen({
       <MenuDrawer
         visible={menuOpen}
         session={session}
+        activeView={activeView}
         onClose={() => setMenuOpen(false)}
         onWallet={onOpenWallet}
         onSparks={onOpenSparks}
+        onEditName={onEditName}
+        onNavigate={handleDrawerNavigate}
+      />
+
+      <WeeklyXpBoard
+        visible={boardOpen}
+        walletAddress={session?.address}
+        onClose={() => {
+          setBoardOpen(false);
+          if (activeView === "leaderboard") setActiveView("home");
+        }}
       />
     </View>
   );
@@ -707,7 +780,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   menuBar: { width: 16, height: 2, borderRadius: 1, backgroundColor: "#0f172a" },
-  logo: { width: 44, height: 44, borderRadius: 12 },
+  wordmarkLogo: {
+    width: 118,
+    height: 36,
+  },
   xpChip: {
     backgroundColor: "#fef3c7",
     borderColor: "rgba(245,158,11,0.35)",
@@ -842,18 +918,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   catalogCard: { flex: 1 },
+  // Own the 2:3 frame here — VideoView must not drive card height.
   catalogThumbWrap: {
+    width: "100%",
+    aspectRatio: 2 / 3,
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 2.5,
     borderColor: colors.borderGold,
     backgroundColor: "#0f172a",
   },
-  catalogThumb: { width: "100%", aspectRatio: 2 / 3 },
+  catalogThumb: {
+    ...StyleSheet.absoluteFillObject,
+  },
   catalogVideo: {
     ...StyleSheet.absoluteFillObject,
-    width: "100%",
-    height: "100%",
   },
   catalogTitle: {
     marginTop: 8,
@@ -915,6 +994,26 @@ const styles = StyleSheet.create({
   },
   errorText: { color: "#991b1b", fontSize: 13 },
   errorRetry: { color: "#b91c1c", fontSize: 12, marginTop: 4, fontWeight: "700" },
+  viewBanner: {
+    marginHorizontal: spacing.lg,
+    marginBottom: 12,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+  },
+  viewBannerTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+  viewBannerBody: {
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   drawerRoot: { flex: 1 },
   drawerBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -936,7 +1035,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 8,
   },
-  drawerLogo: { width: 52, height: 52, borderRadius: 14, marginBottom: 14 },
+  drawerLogo: { width: 140, height: 46, marginBottom: 14 },
   drawerProfile: {
     flexDirection: "row",
     alignItems: "center",

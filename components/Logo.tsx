@@ -1,5 +1,5 @@
 const LOGO_BY_VARIANT = {
-  header: "/arcadeX.webp",
+  header: "/logo.png",
   loading: "/arcadeX.webp",
   login: "/arcadeX.webp",
 } as const;

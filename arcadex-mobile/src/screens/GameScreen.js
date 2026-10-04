@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Pressable,
   StyleSheet,
   Text,
@@ -30,6 +31,7 @@ export default function GameScreen({
   const webRef = useRef(null);
   const busyRef = useRef(false);
   const leavingRef = useRef(false);
+  const leaveOptsRef = useRef({});
   const [loadError, setLoadError] = useState("");
   const uri = gamePlayUrl(game.id);
 
@@ -41,16 +43,43 @@ export default function GameScreen({
   const finishLeave = useCallback(() => {
     if (!leavingRef.current) return;
     leavingRef.current = false;
-    onBack();
+    const opts = leaveOptsRef.current || {};
+    leaveOptsRef.current = {};
+    onBack(opts);
   }, [onBack]);
 
-  const handleBack = useCallback(() => {
+  const handleBack = useCallback((opts = {}) => {
     if (leavingRef.current) return;
     leavingRef.current = true;
+    leaveOptsRef.current = opts || {};
     webRef.current?.injectJavaScript(buildSparksExportScript());
     // Fallback if WebView cannot post the export message.
     setTimeout(finishLeave, 400);
   }, [finishLeave]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      handleBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [handleBack]);
+
+  const onNavigationStateChange = useCallback(
+    (navState) => {
+      const url = navState?.url;
+      if (!url || leavingRef.current) return;
+      try {
+        const path = new URL(url).pathname;
+        if (path === "/" || path === "") {
+          handleBack();
+        }
+      } catch {
+        /* ignore malformed urls */
+      }
+    },
+    [handleBack]
+  );
 
   const onMessage = useCallback(
     async (event) => {
@@ -61,6 +90,11 @@ export default function GameScreen({
         return;
       }
       if (!msg || msg.source !== "arcadex-web") return;
+
+      if (msg.type === "LEAVE_GAME") {
+        handleBack({ openSparks: Boolean(msg.openSparks) });
+        return;
+      }
 
       if (msg.type === "SPARKS_EXPORT") {
         Promise.resolve(onSparksExport?.(msg.stateJson || ""))
@@ -206,21 +240,20 @@ export default function GameScreen({
         );
       }
     },
-    [finishLeave, onSparksExport, onWalletBusyError, reply, session?.address]
+    [
+      finishLeave,
+      handleBack,
+      onSparksExport,
+      onWalletBusyError,
+      reply,
+      session?.address,
+    ]
   );
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
-      <View style={styles.topBar}>
-        <Pressable style={styles.backBtn} onPress={handleBack}>
-          <Text style={styles.backText}>← Games</Text>
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          {game.name}
-        </Text>
-        <View style={{ width: 72 }} />
-      </View>
-
+      {/* Native chrome is intentionally minimal — web GameMenu owns back UI.
+          LEAVE_GAME / home-route detection still closes this screen. */}
       {loadError ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{loadError}</Text>
@@ -246,6 +279,7 @@ export default function GameScreen({
           sparkState,
         })}
         onMessage={onMessage}
+        onNavigationStateChange={onNavigationStateChange}
         startInLoadingState
         renderLoading={() => (
           <View style={styles.loading}>
@@ -263,25 +297,6 @@ export default function GameScreen({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
-  topBar: {
-    height: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    backgroundColor: colors.bgElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backBtn: { width: 72 },
-  backText: { color: colors.accent, fontWeight: "700", fontSize: 14 },
-  title: {
-    flex: 1,
-    textAlign: "center",
-    color: colors.text,
-    fontWeight: "700",
-    fontSize: 15,
-  },
   webview: { flex: 1, backgroundColor: "#000" },
   loading: {
     ...StyleSheet.absoluteFillObject,

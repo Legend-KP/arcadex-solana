@@ -233,22 +233,143 @@ export async function consumeShufflePending(opts: {
   return (result.meta?.changes ?? 0) === 1;
 }
 
-/** Has this wallet already completed today's shuffle for the campaign? */
-export async function hasCompletedShuffleToday(
+/** Rolling 24h cooldown between shuffle plays (not calendar UTC midnight). */
+export const SHUFFLE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export type ShuffleCompletionRow = {
+  dayKey: string;
+  outcomeId: string | null;
+  payoutSignature: string | null;
+  createdAt: number;
+};
+
+/** Most recent shuffle completion for this wallet/campaign (any day). */
+export async function getLastShuffleCompletion(
   wallet: string,
-  campaignId: string | number,
-  dayKey = utcDayKey()
-): Promise<boolean> {
+  campaignId: string | number
+): Promise<ShuffleCompletionRow | null> {
   const db = await requireD1();
   const row = await db
     .prepare(
-      `SELECT 1 AS ok FROM daily_play_completions
-       WHERE wallet = ? AND campaign_id = ? AND day_key = ? AND mode = 'shuffle'
+      `SELECT day_key, outcome_id, payout_signature, created_at
+       FROM daily_play_completions
+       WHERE wallet = ? AND campaign_id = ? AND mode = 'shuffle'
+       ORDER BY created_at DESC
        LIMIT 1`
     )
-    .bind(wallet, String(campaignId), dayKey)
-    .first<{ ok: number }>();
-  return Boolean(row);
+    .bind(wallet, String(campaignId))
+    .first<{
+      day_key: string;
+      outcome_id: string | null;
+      payout_signature: string | null;
+      created_at: number;
+    }>();
+  if (!row) return null;
+  return {
+    dayKey: row.day_key,
+    outcomeId: row.outcome_id,
+    payoutSignature: row.payout_signature,
+    createdAt: Number(row.created_at) || 0,
+  };
+}
+
+/** Open (unclaimed) shuffle session from the last 24h, if any. */
+export async function getOpenShufflePending(
+  wallet: string,
+  campaignId: string | number,
+  now = Date.now()
+): Promise<ShufflePendingRecord | null> {
+  const db = await requireD1();
+  const since = now - SHUFFLE_COOLDOWN_MS;
+  const row = await db
+    .prepare(
+      `SELECT wallet, campaign_id, nonce, payload_json, consumed_at, tx_hash, created_at
+       FROM shuffle_pending
+       WHERE wallet = ? AND campaign_id = ? AND consumed_at IS NULL AND created_at >= ?
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .bind(wallet, String(campaignId), since)
+    .first<{
+      wallet: string;
+      campaign_id: string;
+      nonce: string;
+      payload_json: string;
+      consumed_at: number | null;
+      tx_hash: string | null;
+      created_at: number;
+    }>();
+  if (!row) return null;
+  let payload: ShufflePendingPayload;
+  try {
+    payload = JSON.parse(row.payload_json) as ShufflePendingPayload;
+  } catch {
+    return null;
+  }
+  return {
+    wallet: row.wallet,
+    campaignId: row.campaign_id,
+    nonce: row.nonce,
+    payload,
+    consumedAt: row.consumed_at,
+    txHash: row.tx_hash,
+    createdAt: row.created_at,
+  };
+}
+
+/** True when a shuffle was fully claimed within the last 24 hours. */
+export async function hasCompletedShuffleToday(
+  wallet: string,
+  campaignId: string | number,
+  now = Date.now()
+): Promise<boolean> {
+  const last = await getLastShuffleCompletion(wallet, campaignId);
+  return Boolean(last && now - last.createdAt < SHUFFLE_COOLDOWN_MS);
+}
+
+/**
+ * Whether the Daily Jackpot UI should appear.
+ * - Show for a fresh play (no completion in 24h, no open pending)
+ * - Show to resume an unclaimed pending prize
+ * - Hide after a successful claim until 24h elapses
+ */
+export async function getShuffleAvailability(
+  wallet: string,
+  campaignId: string | number,
+  now = Date.now()
+): Promise<{
+  canCheckIn: boolean;
+  lastCheckInAt: number;
+  nextAvailableAt: number;
+  openNonce: string | null;
+}> {
+  const last = await getLastShuffleCompletion(wallet, campaignId);
+  const open = await getOpenShufflePending(wallet, campaignId, now);
+
+  if (last && now - last.createdAt < SHUFFLE_COOLDOWN_MS && !open) {
+    return {
+      canCheckIn: false,
+      lastCheckInAt: last.createdAt,
+      nextAvailableAt: last.createdAt + SHUFFLE_COOLDOWN_MS,
+      openNonce: null,
+    };
+  }
+
+  if (open) {
+    return {
+      canCheckIn: true,
+      lastCheckInAt: open.createdAt,
+      nextAvailableAt: open.createdAt + SHUFFLE_COOLDOWN_MS,
+      openNonce: open.nonce,
+    };
+  }
+
+  return {
+    canCheckIn: true,
+    lastCheckInAt: last?.createdAt ?? 0,
+    nextAvailableAt: 0,
+    openNonce: null,
+  };
 }
 
 export async function markShuffleCompletedToday(opts: {

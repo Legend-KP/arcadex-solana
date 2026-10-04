@@ -78,7 +78,7 @@ export default function AppDrawer({
       >
         <div className="app-drawer__logo">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/arcadeX.webp" alt="ArcadeX" className="app-drawer__mark" />
+          <img src="/logo.png" alt="ArcadeX" className="app-drawer__mark" />
         </div>
 
         <div className="app-drawer__profile">

@@ -28,6 +28,32 @@ export function buildBootstrapInject({ session, sparkState }) {
         localStorage.setItem('arcadex_guest_sparks', ${escapeForJsString(sparkJson)});
       } catch (e) {}
       ${pairs}
+      // Safety net: if the web app client-routes to "/", leave GameScreen
+      // instead of nesting home under the native ← Games chrome.
+      try {
+        function __arcadexNotifyLeaveIfHome() {
+          try {
+            var path = location.pathname || '';
+            if (path !== '/' && path !== '') return;
+            if (!window.ReactNativeWebView) return;
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              source: 'arcadex-web',
+              type: 'LEAVE_GAME'
+            }));
+          } catch (e) {}
+        }
+        var __ps = history.pushState;
+        history.pushState = function() {
+          __ps.apply(this, arguments);
+          __arcadexNotifyLeaveIfHome();
+        };
+        var __rs = history.replaceState;
+        history.replaceState = function() {
+          __rs.apply(this, arguments);
+          __arcadexNotifyLeaveIfHome();
+        };
+        window.addEventListener('popstate', __arcadexNotifyLeaveIfHome);
+      } catch (e) {}
       true;
     })();
   `;

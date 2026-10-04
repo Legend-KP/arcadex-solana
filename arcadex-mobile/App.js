@@ -81,6 +81,7 @@ function ArcadeShell() {
   const [nameOpen, setNameOpen] = useState(false);
   const [nameBusy, setNameBusy] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [nameIntent, setNameIntent] = useState("setup");
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
@@ -95,6 +96,7 @@ function ArcadeShell() {
       setSparks(sparkSnap);
       // Returning signed-in users without a name must finish profile setup.
       if (savedSession?.address && !savedSession?.playerName?.trim()) {
+        setNameIntent("setup");
         setNameOpen(true);
       }
       setBooted(true);
@@ -149,6 +151,7 @@ function ArcadeShell() {
       setWalletOpen(false);
       if (!existingName) {
         setNameError("");
+        setNameIntent("setup");
         setNameOpen(true);
       }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -265,9 +268,13 @@ function ArcadeShell() {
           game={activeGame}
           session={session}
           sparkState={sparks?.state}
-          onBack={() => {
+          onBack={(opts = {}) => {
             setScreen("home");
             setActiveGame(null);
+            if (opts?.openSparks) {
+              setSparksError("");
+              setSparksOpen(true);
+            }
             loadSparkState().then(setSparks).catch(() => {});
           }}
           onSparksExport={async (stateJson) => {
@@ -294,6 +301,16 @@ function ArcadeShell() {
         onOpenSparks={() => {
           setSparksError("");
           setSparksOpen(true);
+        }}
+        onEditName={() => {
+          if (!session?.address) {
+            setWalletError("");
+            setWalletOpen(true);
+            return;
+          }
+          setNameError("");
+          setNameIntent("edit");
+          setNameOpen(true);
         }}
         onOpenGame={(game) => {
           pushRecentPlayId(game.id).catch(() => {});
@@ -332,8 +349,12 @@ function ArcadeShell() {
         walletAddress={session?.address}
         busy={nameBusy}
         error={nameError}
+        intent={nameIntent}
         defaultName={session?.playerName || ""}
         onSubmit={submitPlayerName}
+        onClose={() => {
+          if (nameIntent === "edit") setNameOpen(false);
+        }}
       />
     </View>
   );

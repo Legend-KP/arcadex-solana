@@ -17,8 +17,10 @@ export default function PlayerNameSheet({
   walletAddress,
   busy,
   error,
+  intent = "setup",
   defaultName = "",
   onSubmit,
+  onClose,
 }) {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(defaultName);
@@ -29,17 +31,40 @@ export default function PlayerNameSheet({
 
   const trimmed = name.trim();
   const valid = trimmed.length >= 1;
+  const isEdit = intent === "edit";
 
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={() => {}}>
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={() => {
+        if (isEdit) onClose?.();
+      }}
+    >
       <View style={styles.root}>
-        <View style={styles.backdrop} />
+        <Pressable
+          style={styles.backdrop}
+          onPress={() => {
+            if (isEdit) onClose?.();
+          }}
+        />
         <View style={[styles.card, { marginBottom: insets.bottom + 16 }]}>
-          <Text style={styles.subtitle}>Welcome to ArcadeX</Text>
-          <Text style={styles.title}>Choose your player name</Text>
+          {isEdit ? (
+            <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={8}>
+              <Text style={styles.closeBtnText}>×</Text>
+            </Pressable>
+          ) : null}
+          <Text style={styles.subtitle}>
+            {isEdit ? "ArcadeX" : "Welcome to ArcadeX"}
+          </Text>
+          <Text style={styles.title}>
+            {isEdit ? "Edit your player name" : "Choose your player name"}
+          </Text>
           <Text style={styles.hint}>
-            Your wallet is connected. Pick a display name to finish setting up
-            your profile.
+            {isEdit
+              ? "Update the display name shown on leaderboards and your profile."
+              : "Your wallet is connected. Pick a display name to finish setting up your profile."}
           </Text>
 
           {walletAddress ? (
@@ -75,7 +100,9 @@ export default function PlayerNameSheet({
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>Continue</Text>
+              <Text style={styles.submitText}>
+                {isEdit ? "Save" : "Continue"}
+              </Text>
             )}
           </Pressable>
         </View>
@@ -100,6 +127,24 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderWidth: 1,
     borderColor: "rgba(167, 139, 250, 0.35)",
+  },
+  closeBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#7c3aed",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  closeBtnText: {
+    color: "#fff",
+    fontSize: 20,
+    lineHeight: 22,
+    fontWeight: "600",
   },
   subtitle: {
     textAlign: "center",

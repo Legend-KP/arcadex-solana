@@ -9,6 +9,7 @@ import {
   getGameTutorialCandidates,
   getGameTutorialSeenKey,
 } from "@/lib/game-assets";
+import { leaveGameToHome } from "@/lib/arcadex-native-bridge";
 import { Game, gameHasContestLive, gameHasLeaderboard } from "@/types";
 
 interface GameMenuProps {
@@ -191,7 +192,7 @@ export default function GameMenu({
   ) : null;
 
   return (
-    <div className="game-menu">
+    <div className={`game-menu${contestLive ? " game-menu--contest" : ""}`}>
       <div className="game-menu-bg">
         {bgSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -216,7 +217,7 @@ export default function GameMenu({
         <button
           type="button"
           className="game-menu-back"
-          onClick={() => router.push("/")}
+          onClick={() => leaveGameToHome(() => router.push("/"))}
           aria-label="Back to home"
         >
           <svg
@@ -250,19 +251,19 @@ export default function GameMenu({
         )}
       </div>
 
-      <div className="game-menu-stack">
-        {contestLive && (
-          <div className="game-menu-contest-stripe" aria-label="Contest is live">
-            <div className="game-menu-contest-stripe-track">
-              {Array.from({ length: 8 }, (_, i) => (
-                <span key={i} aria-hidden={i > 0}>
-                  Contest is Live
-                </span>
-              ))}
-            </div>
+      {contestLive && (
+        <div className="game-menu-contest-stripe" aria-label="Contest is live">
+          <div className="game-menu-contest-stripe-track">
+            {Array.from({ length: 8 }, (_, i) => (
+              <span key={i} aria-hidden={i > 0}>
+                Contest is Live
+              </span>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
+      <div className="game-menu-stack">
         <div className="game-menu-card">
           <div className="game-menu-logo-wrap">
             {menuImageSrc ? (
@@ -289,7 +290,7 @@ export default function GameMenu({
             onClick={onStart}
             disabled={starting}
           >
-            <span className="game-menu-btn__icon" aria-hidden>
+            <span className="game-menu-btn__icon game-menu-btn__icon--play" aria-hidden>
               ▶
             </span>
             {starting ? "Waiting for Approval…" : "Start Game"}
@@ -308,7 +309,7 @@ export default function GameMenu({
               <span className="game-menu-btn__icon" aria-hidden>
                 🏆
               </span>
-              Leaderboard
+              LEADERBOARD
             </button>
           )}
         </div>

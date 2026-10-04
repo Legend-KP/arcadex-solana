@@ -7,6 +7,12 @@ interface LoadingScreenProps {
 }
 
 export default function LoadingScreen({ message = "Loading games" }: LoadingScreenProps) {
+  const label = /loading game/i.test(message)
+    ? "Loading game."
+    : message.endsWith(".")
+      ? message
+      : `${message}.`;
+
   return (
     <div className="loading-screen" role="status" aria-live="polite" aria-busy="true">
       <header className="loading-screen__header">
@@ -18,14 +24,7 @@ export default function LoadingScreen({ message = "Loading games" }: LoadingScre
         <div className="loading-screen__ring loading-screen__ring--inner" aria-hidden="true" />
 
         <div className="loading-screen__content">
-          <p className="loading-screen__text">
-            {message}
-            <span className="loading-screen__dots" aria-hidden="true">
-              <span>.</span>
-              <span>.</span>
-              <span>.</span>
-            </span>
-          </p>
+          <p className="loading-screen__text">{label}</p>
 
           <div className="loading-screen__bar-track" aria-hidden="true">
             <div className="loading-screen__bar-fill" />

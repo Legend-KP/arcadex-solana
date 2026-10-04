@@ -255,7 +255,11 @@ export default function DailyShuffleModal({
       hasShuffleDoneToday(walletAddress, campaignId) ||
       (status && !status.canCheckIn && status.lastCheckInAt > 0)
     ) {
-      markShuffleDoneToday(walletAddress, campaignId);
+      markShuffleDoneToday(
+        walletAddress,
+        campaignId,
+        status?.lastCheckInAt || Date.now()
+      );
       onCompleteRef.current({
         day: status?.currentDay || 1,
         milestone: false,
@@ -290,7 +294,11 @@ export default function DailyShuffleModal({
   );
 
   async function enterAfterAlreadyDone(fresh?: StreakStatus | null) {
-    markShuffleDoneToday(walletAddress, campaignId);
+    markShuffleDoneToday(
+      walletAddress,
+      campaignId,
+      fresh?.lastCheckInAt || status?.lastCheckInAt || Date.now()
+    );
     onCompleteRef.current({
       day: fresh?.currentDay || status?.currentDay || 1,
       milestone: false,
@@ -331,6 +339,13 @@ export default function DailyShuffleModal({
       setClaimNonce(prepare.nonce);
       setNeedsClaim(Boolean(prepare.needsClaim));
       setInfiniteSparkGranted(false);
+
+      // Unclaimed prize from a prior attempt — skip theater, go straight to claim.
+      if (prepare.resumed && prepare.needsClaim) {
+        setPickedId(prepare.outcome.id);
+        setPhase("reveal");
+        return;
+      }
 
       setPhase("showcase");
       await sleep(SHOWCASE_MS);
@@ -441,7 +456,7 @@ export default function DailyShuffleModal({
           Daily Jackpot
         </h2>
         <p className="daily-shuffle-sub">
-          One no-cost shuffle per day (resets 00:00 UTC).
+          One no-cost shuffle every 24 hours.
         </p>
 
         {phase === "intro" || phase === "busy" ? (

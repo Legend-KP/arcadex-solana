@@ -6,7 +6,6 @@ import AchievementsView from "@/components/AchievementsView";
 import ActivityLeaderboardPanel from "@/components/ActivityLeaderboardButton";
 import GameCard from "@/components/GameCard";
 import HomeFeed, { GameCatalog } from "@/components/HomeFeed";
-import Logo from "@/components/Logo";
 import SparkBatteryBar from "@/components/SparkBatteryBar";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 import { pingActivityVisit } from "@/lib/activity-client";
@@ -132,7 +131,12 @@ export default function HomePage() {
               <span />
               <span />
             </button>
-            <Logo variant="header" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="ArcadeX"
+              className="topbar-wordmark-logo"
+            />
           </div>
           <SparkBatteryBar />
         </header>

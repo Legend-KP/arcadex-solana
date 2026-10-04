@@ -1,9 +1,8 @@
 from PIL import Image
 from pathlib import Path
 
-src = Path(
-    r"C:\Users\LENOVO\.cursor\projects\e-kushal-paliwal-Coding-arcadex-solana\assets\c__Users_LENOVO_AppData_Roaming_Cursor_User_workspaceStorage_2515df9d6253343f2fbfa872216e261a_images_app_logo-a59df6a5-e3df-44b5-8a4b-21c0ba02f788.webp"
-)
+# App / APK launcher mark (square)
+src = Path(r"E:\kushal paliwal\Coding\arcadex-solana\public\arcadeX.webp")
 out = Path(r"E:\kushal paliwal\Coding\arcadex-solana\arcadex-mobile\assets")
 public = Path(r"E:\kushal paliwal\Coding\arcadex-solana\public")
 
@@ -42,4 +41,4 @@ square_fit(img, 512, pad_ratio=0.1).save(out / "splash-icon.png", "PNG")
 
 public.mkdir(parents=True, exist_ok=True)
 square_fit(img, 512, pad_ratio=0.05).save(public / "app-icon.png", "PNG")
-print("ok")
+print("ok — icons from arcadeX.webp")

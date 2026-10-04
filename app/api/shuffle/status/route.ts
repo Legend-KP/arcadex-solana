@@ -7,7 +7,7 @@ import {
 } from "@/lib/rate-limit";
 import { isSolanaAddress } from "@/lib/solana-address";
 import { normalizeWalletAddress } from "@/lib/wallet-address";
-import { hasCompletedShuffleToday } from "@/lib/daily-play-server";
+import { getShuffleAvailability } from "@/lib/daily-play-server";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +30,17 @@ export async function GET(request: Request) {
       );
     }
     const wallet = normalizeWalletAddress(rawWallet);
-    const done = await hasCompletedShuffleToday(wallet, campaignId);
+    const availability = await getShuffleAvailability(wallet, campaignId);
     return NextResponse.json({
       ok: true,
       walletAddress: wallet,
       campaignId,
-      canCheckIn: !done,
-      currentDay: done ? 1 : 0,
+      canCheckIn: availability.canCheckIn,
+      currentDay: availability.canCheckIn ? 0 : 1,
       requiredDays: 1,
-      lastCheckInAt: done ? Date.now() : 0,
+      lastCheckInAt: availability.lastCheckInAt,
+      nextAvailableAt: availability.nextAvailableAt,
+      openNonce: availability.openNonce,
       streakWouldReset: false,
       configured: true,
     });
