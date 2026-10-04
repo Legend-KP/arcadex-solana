@@ -119,6 +119,8 @@ function push(out, seen, url) {
 
 /**
  * Candidate image URLs for a game card (mirrors web game-assets priority).
+ * Prefer known /thumbnails/{slug}.webp posters so cards paint even when
+ * Firestore thumbnail/logo fields are missing or stale.
  */
 export function gameImageCandidates(game) {
   const out = [];
@@ -127,13 +129,23 @@ export function gameImageCandidates(game) {
   const id = String(game?.id || "")
     .trim()
     .toLowerCase();
+  const previewFolder = resolvePreviewVideoFolder(game);
+  const aliasSlug = PREVIEW_VIDEO_ALIASES[slug] || null;
+
+  // Local posters first (fast, known-good).
+  if (previewFolder) push(out, seen, `/thumbnails/${previewFolder}.webp`);
+  if (aliasSlug && aliasSlug !== previewFolder) {
+    push(out, seen, `/thumbnails/${aliasSlug}.webp`);
+  }
+  if (slug && slug !== previewFolder && slug !== aliasSlug) {
+    push(out, seen, `/thumbnails/${slug}.webp`);
+  }
 
   push(out, seen, game?.thumbnail);
   push(out, seen, game?.logo);
   push(out, seen, game?.fallbackImage);
 
   if (slug) {
-    push(out, seen, `/thumbnails/${slug}.webp`);
     push(out, seen, `/games/${slug}/logo.webp`);
     push(out, seen, `/games/${slug}/logo.png`);
     push(out, seen, `/games/${slug}/thumbnail.webp`);
@@ -145,11 +157,16 @@ export function gameImageCandidates(game) {
     jellyjumble: "/games/jelly-logo.webp",
     "line-link": "/games/line-logo.webp",
     linelink: "/games/line-logo.webp",
+    basedrop: "/games/basedrop/logo.webp",
+    "base-drop": "/games/basedrop/logo.webp",
   };
   if (slug && rootLogos[slug]) push(out, seen, rootLogos[slug]);
+  if (previewFolder && rootLogos[previewFolder]) {
+    push(out, seen, rootLogos[previewFolder]);
+  }
   if (slug?.includes("jelly")) push(out, seen, "/games/jelly-logo.webp");
 
-  if (id && !/^[a-z0-9]{20,}$/i.test(id)) {
+  if (id && !isFirestoreAutoId(id)) {
     push(out, seen, `/thumbnails/${id}.webp`);
     push(out, seen, `/games/${id}/logo.webp`);
   }

@@ -76,10 +76,18 @@ export default function AppDrawer({
         aria-label="Menu"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="app-drawer__logo">
+        <button
+          type="button"
+          className="app-drawer__logo"
+          aria-label="Home"
+          onClick={() => {
+            onNavigate("home");
+            onClose();
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="ArcadeX" className="app-drawer__mark" />
-        </div>
+        </button>
 
         <div className="app-drawer__profile">
           <div className="app-drawer__avatar" aria-hidden>
@@ -114,13 +122,12 @@ export default function AppDrawer({
                 item.id !== "sparks" && view === item.id ? " is-active" : ""
               }`}
               onClick={() => {
+                onClose();
                 if (item.id === "sparks") {
-                  onClose();
                   onOpenSparks();
                   return;
                 }
                 onNavigate(item.id);
-                onClose();
               }}
             >
               {item.label}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   Linking,
@@ -43,38 +44,87 @@ const VIEWABILITY_CONFIG = {
   minimumViewTime: 80,
 };
 
-function ThumbImage({ game, style, square }) {
+function ThumbImage({ game, style, square, onReady }) {
   const candidates = useMemo(() => gameImageCandidates(game), [game]);
   const [idx, setIdx] = useState(0);
   const uri = candidates[idx] || null;
-  return uri ? (
+  const readySent = useRef(false);
+
+  useEffect(() => {
+    setIdx(0);
+    readySent.current = false;
+  }, [game?.id, candidates[0]]);
+
+  const markReady = () => {
+    if (readySent.current) return;
+    readySent.current = true;
+    onReady?.();
+  };
+
+  if (!uri) {
+    return (
+      <View
+        style={[style, styles.thumbFallback, square && styles.squareThumb]}
+        onLayout={markReady}
+      >
+        <Text style={styles.thumbFallbackText}>
+          {(game.name || "?").slice(0, 1)}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
     <Image
       source={{ uri }}
       style={[style, square && styles.squareThumb]}
       resizeMode="cover"
+      onLoad={markReady}
       onError={() => setIdx((i) => (i + 1 < candidates.length ? i + 1 : i))}
     />
-  ) : (
-    <View style={[style, styles.thumbFallback, square && styles.squareThumb]}>
-      <Text style={styles.thumbFallbackText}>{(game.name || "?").slice(0, 1)}</Text>
-    </View>
   );
 }
 
 /** Mounted only while a catalog card is in view — muted looping preview. */
-function PreviewVideo({ uri, onError }) {
+function PreviewVideo({ uri, width, height, onError }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const revealed = useRef(false);
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = true;
     p.play();
   });
 
+  const reveal = useCallback(() => {
+    if (revealed.current) return;
+    revealed.current = true;
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 280,
+      useNativeDriver: true,
+    }).start();
+  }, [opacity]);
+
   useEventListener(player, "statusChange", ({ status }) => {
     if (status === "error") onError?.();
+    if (status === "readyToPlay") {
+      try {
+        player.play();
+      } catch {
+        /* ignore */
+      }
+      reveal();
+    }
+  });
+
+  useEventListener(player, "playingChange", ({ isPlaying }) => {
+    if (isPlaying) reveal();
   });
 
   useEffect(() => {
     try {
+      player.muted = true;
+      player.loop = true;
       player.play();
     } catch {
       /* ignore */
@@ -89,15 +139,18 @@ function PreviewVideo({ uri, onError }) {
   }, [player]);
 
   return (
-    <View style={styles.catalogVideo} pointerEvents="none">
+    <Animated.View
+      style={[styles.catalogVideo, { width, height, opacity }]}
+      pointerEvents="none"
+    >
       <VideoView
         player={player}
-        style={StyleSheet.absoluteFill}
+        style={{ width, height }}
         contentFit="cover"
         nativeControls={false}
         surfaceType="textureView"
       />
-    </View>
+    </Animated.View>
   );
 }
 
@@ -133,6 +186,9 @@ function CatalogCard({ game, playCount, onPress, isVisible, reduceMotion }) {
   const neu = isNewArrival(game);
   const video = useMemo(() => gameVideoSources(game), [game]);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [posterReady, setPosterReady] = useState(false);
+  const [thumbW, setThumbW] = useState(0);
+  const thumbH = thumbW > 0 ? Math.round((thumbW * 3) / 2) : 0;
 
   // Poster always paints; video mounts only when visible + allowlisted + live.
   const mountVideo =
@@ -140,12 +196,19 @@ function CatalogCard({ game, playCount, onPress, isVisible, reduceMotion }) {
     !!video?.mp4 &&
     isVisible &&
     !reduceMotion &&
-    !videoFailed;
+    !videoFailed &&
+    posterReady &&
+    thumbH > 0;
 
   // Retry after scroll-away (transient network / decode errors).
   useEffect(() => {
     if (!isVisible) setVideoFailed(false);
   }, [isVisible]);
+
+  useEffect(() => {
+    setPosterReady(false);
+    setVideoFailed(false);
+  }, [game?.id]);
 
   return (
     <Pressable
@@ -160,10 +223,32 @@ function CatalogCard({ game, playCount, onPress, isVisible, reduceMotion }) {
         onPress(game);
       }}
     >
-      <View style={styles.catalogThumbWrap}>
-        <ThumbImage game={game} style={styles.catalogThumb} />
+      <View
+        style={[
+          styles.catalogThumbWrap,
+          thumbH > 0 ? { height: thumbH } : styles.catalogThumbWrapPending,
+        ]}
+        onLayout={(e) => {
+          const w = Math.round(e.nativeEvent.layout.width);
+          if (w > 0 && w !== thumbW) setThumbW(w);
+        }}
+      >
+        <ThumbImage
+          game={game}
+          style={
+            thumbH > 0
+              ? { width: thumbW, height: thumbH }
+              : styles.catalogThumb
+          }
+          onReady={() => setPosterReady(true)}
+        />
         {mountVideo ? (
-          <PreviewVideo uri={video.mp4} onError={() => setVideoFailed(true)} />
+          <PreviewVideo
+            uri={video.mp4}
+            width={thumbW}
+            height={thumbH}
+            onError={() => setVideoFailed(true)}
+          />
         ) : null}
         {neu ? (
           <View style={styles.newBadge}>
@@ -274,12 +359,20 @@ function MenuDrawer({
             },
           ]}
         >
-          <Image
-            source={{ uri: logoSrc }}
-            style={styles.drawerLogo}
-            resizeMode="contain"
-            onError={() => setLogoSrc(logoFallbackUrl())}
-          />
+          <Pressable
+            onPress={() => {
+              onNavigate?.("home");
+              onClose();
+            }}
+            hitSlop={8}
+          >
+            <Image
+              source={{ uri: logoSrc }}
+              style={styles.drawerLogo}
+              resizeMode="contain"
+              onError={() => setLogoSrc(logoFallbackUrl())}
+            />
+          </Pressable>
 
           <Pressable
             style={styles.drawerProfile}
@@ -315,13 +408,12 @@ function MenuDrawer({
                   key={item.id}
                   style={[styles.drawerItem, active && styles.drawerItemActive]}
                   onPress={() => {
+                    onClose();
                     if (item.id === "sparks") {
-                      onClose();
                       onSparks();
                       return;
                     }
                     onNavigate?.(item.id);
-                    onClose();
                   }}
                 >
                   <Text
@@ -498,11 +590,13 @@ export default function HomeScreen({
           : "Sort";
 
   const handleDrawerNavigate = (id) => {
+    setMenuOpen(false);
     if (id === "leaderboard") {
       setBoardOpen(true);
       setActiveView("leaderboard");
       return;
     }
+    setBoardOpen(false);
     if (id === "achievements") {
       setActiveView("achievements");
       return;
@@ -918,21 +1012,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   catalogCard: { flex: 1 },
-  // Own the 2:3 frame here — VideoView must not drive card height.
   catalogThumbWrap: {
     width: "100%",
-    aspectRatio: 2 / 3,
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 2.5,
     borderColor: colors.borderGold,
     backgroundColor: "#0f172a",
   },
+  // Before onLayout: keep 2:3 so the grid doesn't jump.
+  catalogThumbWrapPending: {
+    aspectRatio: 2 / 3,
+  },
   catalogThumb: {
-    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    aspectRatio: 2 / 3,
   },
   catalogVideo: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
   catalogTitle: {
     marginTop: 8,
