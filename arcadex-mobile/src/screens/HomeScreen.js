@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderGold,
     backgroundColor: "#0f172a",
   },
-  catalogThumb: { width: "100%", aspectRatio: 4 / 5 },
+  catalogThumb: { width: "100%", aspectRatio: 2 / 3 },
   catalogVideo: {
     ...StyleSheet.absoluteFillObject,
     width: "100%",
