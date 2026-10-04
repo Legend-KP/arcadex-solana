@@ -67,6 +67,8 @@ export async function performDailyCheckIn(
   requiredDays: number;
   milestone: boolean;
   lastCheckInAt: number;
+  xpGranted: number;
+  infiniteSparkGranted: boolean;
 }> {
   const res = await fetch("/api/streak/check-in", {
     method: "POST",
@@ -80,6 +82,8 @@ export async function performDailyCheckIn(
     requiredDays?: number;
     milestone?: boolean;
     lastCheckInAt?: number;
+    xpGranted?: number;
+    infiniteSparkGranted?: boolean;
     token?: string | null;
   };
   if (!res.ok) {
@@ -92,6 +96,8 @@ export async function performDailyCheckIn(
     requiredDays: Number(data.requiredDays) || 7,
     milestone: Boolean(data.milestone),
     lastCheckInAt: Number(data.lastCheckInAt) || Date.now(),
+    xpGranted: Number(data.xpGranted) || 10,
+    infiniteSparkGranted: Boolean(data.infiniteSparkGranted),
   };
 }
 
@@ -108,11 +114,12 @@ export async function grantStreakReward(
   const data = (await res.json().catch(() => ({}))) as {
     error?: string;
     granted?: boolean;
+    alreadyGranted?: boolean;
   };
   if (!res.ok) {
     throw new Error(data.error ?? "Could not grant streak reward.");
   }
-  return { granted: Boolean(data.granted) };
+  return { granted: Boolean(data.granted || data.alreadyGranted) };
 }
 
 export function isAlreadyCheckedInError(err: unknown): boolean {
@@ -122,10 +129,10 @@ export function isAlreadyCheckedInError(err: unknown): boolean {
   return msg.includes("already checked in") || msg.includes("too_soon");
 }
 
-/** Legacy alias — Solana shuffle no longer issues a session from streak sync. */
+/** Legacy alias — Solana session comes from wallet connect / check-in token. */
 export async function refreshSessionFromCheckIn(
   _walletAddress: string,
   _campaignId?: number
 ): Promise<void> {
-  // no-op on Solana (session comes from shuffle claim / wallet connect)
+  // no-op on Solana
 }

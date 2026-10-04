@@ -118,6 +118,24 @@ export function leaveGameToHome(
   navigateHome();
 }
 
+/** Close the native Daily Shuffle WebView overlay after claim / skip. */
+export function notifyNativeShuffleDone(): boolean {
+  if (typeof window === "undefined" || !window.ReactNativeWebView) {
+    return false;
+  }
+  try {
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({
+        source: "arcadex-web",
+        type: "SHUFFLE_DONE",
+      })
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function waitForNativeResult<T extends NativeBridgeMessage>(
   type: T["type"],
   requestId: string,

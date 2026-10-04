@@ -8,6 +8,7 @@ import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
 import { getCachedSolanaAddress } from "@/lib/solana-address";
 import { playSuccessSfx, playTouchSfx, preloadSfx } from "@/lib/sfx";
 import { formatSparkCountdown } from "@/lib/spark";
+import SparkSegmentRing from "@/components/SparkSegmentRing";
 
 function paymentErrorMessage(err: unknown): string {
   const raw =
@@ -191,38 +192,51 @@ export default function SparkBatteryBar() {
 
           {sparks.hasInfinite ? (
             <section className="spark-panel__status">
-              <div className="spark-panel__hero-ring" aria-hidden>
-                <span className="spark-panel__hero-bolt">∞</span>
+              <div className="spark-panel__status-row">
+                <SparkSegmentRing
+                  available={sparks.max}
+                  max={sparks.max}
+                  infinite
+                />
+                <div className="spark-panel__status-copy">
+                  <p className="spark-panel__count-text spark-panel__count-text--infinite">
+                    Infinite Spark active
+                  </p>
+                  <p className="spark-panel__infinite-hint">
+                    Play any game freely — no Spark cost while this lasts.
+                  </p>
+                </div>
               </div>
-              <p className="spark-panel__count-text spark-panel__count-text--infinite">
-                Infinite Spark active
-              </p>
-              <p className="spark-panel__infinite-hint">
-                Play any game freely — no Spark cost while this lasts.
-              </p>
             </section>
           ) : (
             <section className="spark-panel__status">
-              <div className="spark-panel__hero-ring" aria-hidden>
-                <span className="spark-panel__hero-bolt">⚡</span>
+              <div className="spark-panel__status-row">
+                <SparkSegmentRing
+                  available={sparks.available}
+                  max={sparks.max}
+                />
+                <div className="spark-panel__status-copy">
+                  <p className="spark-panel__count-text">
+                    <strong>
+                      {sparks.available} / {sparks.max}
+                    </strong>
+                  </p>
+                  <p className="spark-panel__count-caption">Sparks Available</p>
+                  {isFull ? (
+                    <span className="spark-panel__timer">
+                      All Sparks are ready!
+                    </span>
+                  ) : regeneratingSlot ? (
+                    <span className="spark-panel__timer">
+                      <span className="spark-panel__timer-icon" aria-hidden>
+                        ⏱
+                      </span>
+                      Next Spark in{" "}
+                      {formatSparkCountdown(regeneratingSlot.timeRemainingMs)}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <p className="spark-panel__count-text">
-                <strong>
-                  {sparks.available} / {sparks.max}
-                </strong>
-              </p>
-              <p className="spark-panel__count-caption">Sparks Available</p>
-
-              {isFull ? (
-                <span className="spark-panel__badge">
-                  All Sparks are ready! 🌌
-                </span>
-              ) : regeneratingSlot ? (
-                <span className="spark-panel__badge spark-panel__badge--wait">
-                  Next Spark in{" "}
-                  {formatSparkCountdown(regeneratingSlot.timeRemainingMs)}
-                </span>
-              ) : null}
 
               <p className="spark-panel__info">
                 <span className="spark-panel__info-icon" aria-hidden>

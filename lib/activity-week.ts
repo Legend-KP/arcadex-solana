@@ -9,7 +9,8 @@ export type ActivityEventKind =
   | "play"
   | "visit"
   | "tx"
-  | "spend";
+  | "spend"
+  | "checkin";
 
 export interface ActivityWeekWindow {
   weekId: string;
@@ -22,6 +23,7 @@ export interface ActivityCounters {
   activeDays: number;
   txs: number;
   spendUnits: number;
+  checkIns: number;
   lastActiveDay?: string;
   lastPlayAt?: number;
   updatedAt?: number;
@@ -38,6 +40,7 @@ export interface ActivityLeaderboardEntry {
   activeDays?: number;
   txs?: number;
   spendUnits?: number;
+  checkIns?: number;
   updatedAt?: number;
 }
 
@@ -50,16 +53,19 @@ export const ACTIVITY_XP_PER_PLAY = 10;
 export const ACTIVITY_XP_PER_ACTIVE_DAY = 5;
 export const ACTIVITY_XP_PER_TX = 1;
 export const ACTIVITY_XP_PER_SPEND_UNIT = 1;
+/** Daily streak check-in reward. */
+export const ACTIVITY_XP_PER_CHECKIN = 10;
 
 export function computeActivityXp(counters: Pick<
   ActivityCounters,
-  "sparksSpent" | "activeDays" | "txs" | "spendUnits"
+  "sparksSpent" | "activeDays" | "txs" | "spendUnits" | "checkIns"
 >): number {
   return (
     Math.max(0, counters.sparksSpent) * ACTIVITY_XP_PER_PLAY +
     Math.max(0, counters.activeDays) * ACTIVITY_XP_PER_ACTIVE_DAY +
     Math.max(0, counters.txs) * ACTIVITY_XP_PER_TX +
-    Math.max(0, counters.spendUnits) * ACTIVITY_XP_PER_SPEND_UNIT
+    Math.max(0, counters.spendUnits) * ACTIVITY_XP_PER_SPEND_UNIT +
+    Math.max(0, counters.checkIns) * ACTIVITY_XP_PER_CHECKIN
   );
 }
 
@@ -80,6 +86,8 @@ export function resolveActivityEntryXp(
   const txs = typeof entry.txs === "number" ? Math.max(0, entry.txs) : 0;
   const spendUnits =
     typeof entry.spendUnits === "number" ? Math.max(0, entry.spendUnits) : 0;
+  const checkIns =
+    typeof entry.checkIns === "number" ? Math.max(0, entry.checkIns) : 0;
 
   return {
     ...entry,
@@ -87,7 +95,14 @@ export function resolveActivityEntryXp(
     activeDays,
     txs,
     spendUnits,
-    score: computeActivityXp({ sparksSpent, activeDays, txs, spendUnits }),
+    checkIns,
+    score: computeActivityXp({
+      sparksSpent,
+      activeDays,
+      txs,
+      spendUnits,
+      checkIns,
+    }),
   };
 }
 
@@ -136,6 +151,7 @@ export function emptyActivityCounters(): ActivityCounters {
     activeDays: 0,
     txs: 0,
     spendUnits: 0,
+    checkIns: 0,
   };
 }
 
@@ -159,6 +175,10 @@ export function coerceActivityCounters(raw: unknown): ActivityCounters {
     spendUnits:
       typeof data.spendUnits === "number" && Number.isFinite(data.spendUnits)
         ? Math.max(0, Math.floor(data.spendUnits))
+        : 0,
+    checkIns:
+      typeof data.checkIns === "number" && Number.isFinite(data.checkIns)
+        ? Math.max(0, Math.floor(data.checkIns))
         : 0,
     lastActiveDay:
       typeof data.lastActiveDay === "string" ? data.lastActiveDay : undefined,

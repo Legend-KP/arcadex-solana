@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -9,6 +10,68 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../theme";
+
+function formatCountdown(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  return `${m}m`;
+}
+
+/** 4-segment ring — lit arcs = available Sparks. */
+function SparkSegmentRing({ available, max = 4, infinite = false }) {
+  const size = 92;
+  const stroke = 9;
+  const slotCount = Math.max(1, Math.floor(max));
+  const lit = infinite
+    ? slotCount
+    : Math.max(0, Math.min(slotCount, Math.floor(available)));
+  const gapDeg = 14;
+  const sweep = (360 - gapDeg * slotCount) / slotCount;
+  const r = (size - stroke) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+
+  // Approximate each arc with a short rounded bar on the circle.
+  const bars = Array.from({ length: slotCount }, (_, i) => {
+    const mid = -90 + gapDeg / 2 + sweep / 2 + i * (sweep + gapDeg);
+    const rad = (mid * Math.PI) / 180;
+    const barLen = ((sweep / 360) * 2 * Math.PI * r) * 0.92;
+    return {
+      filled: infinite || i < lit,
+      left: cx + r * Math.cos(rad) - barLen / 2,
+      top: cy + r * Math.sin(rad) - stroke / 2,
+      width: barLen,
+      rotate: mid + 90,
+    };
+  });
+
+  return (
+    <View style={[styles.ring, { width: size, height: size }]}>
+      {bars.map((bar, i) => (
+        <View
+          key={i}
+          style={[
+            styles.ringBar,
+            {
+              width: bar.width,
+              height: stroke,
+              left: bar.left,
+              top: bar.top,
+              backgroundColor: bar.filled
+                ? "#fbbf24"
+                : "rgba(251, 191, 36, 0.22)",
+              transform: [{ rotate: `${bar.rotate}deg` }],
+              shadowColor: bar.filled ? "#fbbf24" : "transparent",
+            },
+          ]}
+        />
+      ))}
+      <Text style={styles.ringBolt}>{infinite ? "∞" : "⚡"}</Text>
+    </View>
+  );
+}
 
 export default function SparksSheet({
   visible,
@@ -26,6 +89,19 @@ export default function SparksSheet({
   const max = sparks?.max ?? 4;
   const isFull = available >= max;
   const hasInfinite = Boolean(sparks?.hasInfinite);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (!visible || hasInfinite || isFull) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [visible, hasInfinite, isFull]);
+
+  const regeneratingAt = (sparks?.state?.slots || [])
+    .filter((s) => typeof s === "number" && s > now)
+    .sort((a, b) => a - b)[0];
+  const nextMs =
+    regeneratingAt && regeneratingAt > now ? regeneratingAt - now : 0;
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -59,28 +135,34 @@ export default function SparksSheet({
             </Text>
 
             <View style={styles.status}>
-              <View style={styles.heroRing}>
-                <Text style={styles.heroBolt}>{hasInfinite ? "∞" : "⚡"}</Text>
-              </View>
-
               {hasInfinite ? (
-                <>
-                  <Text style={styles.countInfinite}>Infinite Spark active</Text>
-                  <Text style={styles.infiniteHint}>
-                    Play any game freely — no Spark cost while this lasts.
-                  </Text>
-                </>
+                <View style={styles.statusRow}>
+                  <SparkSegmentRing available={max} max={max} infinite />
+                  <View style={styles.statusCopy}>
+                    <Text style={styles.countInfinite}>Infinite Spark active</Text>
+                    <Text style={styles.infiniteHint}>
+                      Play any game freely — no Spark cost while this lasts.
+                    </Text>
+                  </View>
+                </View>
               ) : (
                 <>
-                  <Text style={styles.countValue}>
-                    {available} / {max}
-                  </Text>
-                  <Text style={styles.countCaption}>Sparks Available</Text>
-                  {isFull ? (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>All Sparks are ready! 🌌</Text>
+                  <View style={styles.statusRow}>
+                    <SparkSegmentRing available={available} max={max} />
+                    <View style={styles.statusCopy}>
+                      <Text style={styles.countValue}>
+                        {available} / {max}
+                      </Text>
+                      <Text style={styles.countCaption}>Sparks Available</Text>
+                      {isFull ? (
+                        <Text style={styles.timer}>All Sparks are ready!</Text>
+                      ) : nextMs > 0 ? (
+                        <Text style={styles.timer}>
+                          ⏱ Next Spark in {formatCountdown(nextMs)}
+                        </Text>
+                      ) : null}
                     </View>
-                  ) : null}
+                  </View>
                   <View style={styles.infoBox}>
                     <View style={styles.infoIcon}>
                       <Text style={styles.infoIconText}>i</Text>
@@ -241,29 +323,40 @@ const styles = StyleSheet.create({
   status: {
     backgroundColor: "#1a0f45",
     borderRadius: 22,
-    paddingTop: 22,
+    paddingTop: 18,
     paddingBottom: 14,
     paddingHorizontal: 14,
-    alignItems: "center",
     marginBottom: 18,
+    gap: 14,
   },
-  heroRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 5,
-    borderColor: "#fbbf24",
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  statusCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  ring: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
   },
-  heroBolt: {
+  ringBar: {
+    position: "absolute",
+    borderRadius: 999,
+    shadowOpacity: 0.55,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
+  },
+  ringBolt: {
     fontSize: 32,
     color: "#fbbf24",
   },
   countValue: {
     color: "#fbbf24",
-    fontSize: 38,
+    fontSize: 34,
     fontWeight: "900",
     letterSpacing: 1,
   },
@@ -272,31 +365,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     marginTop: 2,
-    marginBottom: 14,
+    marginBottom: 6,
+  },
+  timer: {
+    color: "rgba(255,255,255,0.88)",
+    fontSize: 13,
+    fontWeight: "700",
   },
   countInfinite: {
     color: "#fbbf24",
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   infiniteHint: {
     color: "#ddd6fe",
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  badge: {
-    backgroundColor: "#22c55e",
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 14,
-  },
-  badgeText: {
-    color: "#fff",
     fontSize: 13,
-    fontWeight: "800",
+    lineHeight: 18,
   },
   infoBox: {
     width: "100%",

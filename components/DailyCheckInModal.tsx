@@ -12,6 +12,8 @@ import {
   type StreakStatus,
 } from "@/lib/streak-client";
 
+const DAILY_XP = 10;
+
 interface DailyCheckInModalProps {
   open: boolean;
   walletAddress: string;
@@ -21,6 +23,7 @@ interface DailyCheckInModalProps {
     milestone: boolean;
     infiniteSparkGranted: boolean;
   }) => void;
+  onClose?: () => void;
 }
 
 function FlameIcon({ className }: { className?: string }) {
@@ -48,16 +51,79 @@ function CheckIcon() {
   );
 }
 
-function ChestIcon() {
+function CloseIcon() {
   return (
-    <svg viewBox="0 0 32 32" fill="none" aria-hidden>
-      <rect x="4" y="14" width="24" height="14" rx="3" fill="#b45309" />
-      <path d="M4 16h24v5H4z" fill="#f59e0b" />
-      <rect x="6" y="8" width="20" height="8" rx="2" fill="#d97706" />
-      <circle cx="16" cy="19" r="2.2" fill="#fde68a" />
-      <circle cx="10" cy="12" r="1.6" fill="#34d399" />
-      <circle cx="22" cy="11" r="1.4" fill="#60a5fa" />
-      <circle cx="16" cy="9" r="1.5" fill="#f472b6" />
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden>
+      <path
+        d="M5 5l10 10M15 5 5 15"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden>
+      <rect
+        x="3"
+        y="4"
+        width="14"
+        height="13"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M3 8h14M7 2.5v3M13 2.5v3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Gold XP coin — used for D1–D6. */
+function XpCoinIcon({ uid }: { uid: string }) {
+  const outer = `xp-outer-${uid}`;
+  const inner = `xp-inner-${uid}`;
+  return (
+    <svg viewBox="0 0 40 40" fill="none" aria-hidden>
+      <circle cx="20" cy="20" r="18" fill={`url(#${outer})`} />
+      <circle cx="20" cy="20" r="14.5" fill={`url(#${inner})`} />
+      <circle
+        cx="20"
+        cy="20"
+        r="14.5"
+        stroke="#fde68a"
+        strokeWidth="1.2"
+        opacity="0.7"
+      />
+      <text
+        x="20"
+        y="24.5"
+        textAnchor="middle"
+        fontSize="11"
+        fontWeight="800"
+        fill="#7c2d12"
+        fontFamily="system-ui, sans-serif"
+      >
+        XP
+      </text>
+      <defs>
+        <linearGradient id={outer} x1="6" y1="4" x2="34" y2="36">
+          <stop stopColor="#fde68a" />
+          <stop offset="0.45" stopColor="#f59e0b" />
+          <stop offset="1" stopColor="#b45309" />
+        </linearGradient>
+        <linearGradient id={inner} x1="10" y1="8" x2="30" y2="32">
+          <stop stopColor="#fbbf24" />
+          <stop offset="1" stopColor="#d97706" />
+        </linearGradient>
+      </defs>
     </svg>
   );
 }
@@ -67,14 +133,26 @@ function InfinitySparkIcon({ gradientId }: { gradientId: string }) {
     <svg viewBox="0 0 40 40" fill="none" aria-hidden>
       <circle cx="20" cy="20" r="18" fill={`url(#${gradientId})`} />
       <path
-        d="M20 8.5 22.4 16H30l-6.2 4.4L26.2 28 20 23.4 13.8 28l2.4-7.6L10 16h7.6L20 8.5z"
+        d="M22.5 8.5 12.8 21.2h6.2l-1.5 10.3 9.7-12.7h-6.2L22.5 8.5z"
         fill="#fff"
       />
+      <circle cx="31" cy="10" r="7" fill="#4c1d95" />
+      <text
+        x="31"
+        y="13.2"
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="800"
+        fill="#fff"
+        fontFamily="system-ui, sans-serif"
+      >
+        ∞
+      </text>
       <defs>
         <linearGradient id={gradientId} x1="6" y1="6" x2="34" y2="34">
-          <stop stopColor="#fbbf24" />
+          <stop stopColor="#fb923c" />
           <stop offset="0.55" stopColor="#f59e0b" />
-          <stop offset="1" stopColor="#a855f7" />
+          <stop offset="1" stopColor="#ea580c" />
         </linearGradient>
       </defs>
     </svg>
@@ -120,6 +198,7 @@ export default function DailyCheckInModal({
   walletAddress,
   status,
   onComplete,
+  onClose,
 }: DailyCheckInModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -133,10 +212,9 @@ export default function DailyCheckInModal({
     infiniteSparkGranted: boolean;
   } | null>(null);
   const infinityGradId = useId().replace(/:/g, "");
+  const daysRailRef = useRef<HTMLDivElement | null>(null);
   const recoverAttemptedRef = useRef(false);
 
-  // If the on-chain check-in already landed but session sync failed, unlock
-  // without asking the user to send another tx (which would revert TooSoon).
   useEffect(() => {
     if (!open || !walletAddress || recoverAttemptedRef.current) return;
     recoverAttemptedRef.current = true;
@@ -174,6 +252,7 @@ export default function DailyCheckInModal({
       recoverAttemptedRef.current = false;
       setSuccess(null);
       pendingCompleteRef.current = null;
+      setError("");
     }
   }, [open]);
 
@@ -203,6 +282,12 @@ export default function DailyCheckInModal({
   const displayStreak = wouldReset ? 0 : currentDay;
   const isFinalDay = checkInDay >= requiredDays;
   const days = Array.from({ length: requiredDays }, (_, i) => i + 1);
+  const progressRatio =
+    requiredDays <= 1
+      ? displayStreak > 0
+        ? 1
+        : 0
+      : Math.min(1, Math.max(0, displayStreak / (requiredDays - 1)));
 
   const streakHint = wouldReset
     ? "Ready for a fresh run — check in to begin day 1."
@@ -214,10 +299,16 @@ export default function DailyCheckInModal({
           ? "Nice! Come back tomorrow 🔥"
           : "Good start! Keep it going! 🔥";
 
-  const nextRewardTitle = isFinalDay
-    ? `Day ${requiredDays} Reward`
-    : `Day ${requiredDays} Milestone`;
-  const nextRewardDetail = "Infinite Spark · 24 hours";
+  const nextMilestoneDay = isFinalDay
+    ? requiredDays
+    : Math.min(requiredDays, checkInDay);
+  const nextIsInfinite = nextMilestoneDay >= requiredDays;
+  const nextRewardTitle = nextIsInfinite
+    ? `Day ${requiredDays}`
+    : `Day ${nextMilestoneDay}`;
+  const nextRewardDetail = nextIsInfinite
+    ? "Infinite Spark · 24 hours"
+    : `${DAILY_XP} XP`;
   const nextRewardBadge = isFinalDay
     ? "Today"
     : displayStreak > 0
@@ -230,8 +321,8 @@ export default function DailyCheckInModal({
     setError("");
     try {
       const result = await performDailyCheckIn(walletAddress);
-      let infiniteSparkGranted = false;
-      if (result.milestone) {
+      let infiniteSparkGranted = Boolean(result.infiniteSparkGranted);
+      if (result.milestone && !infiniteSparkGranted) {
         try {
           const granted = await grantStreakReward(walletAddress);
           infiniteSparkGranted = Boolean(granted.granted);
@@ -240,6 +331,7 @@ export default function DailyCheckInModal({
         }
       }
       playSuccessSfx();
+      const xp = result.xpGranted || DAILY_XP;
       const complete = {
         day: result.currentDay,
         milestone: result.milestone,
@@ -251,8 +343,8 @@ export default function DailyCheckInModal({
           ? "Milestone reached!"
           : "Check-in successful!",
         body: complete.infiniteSparkGranted
-          ? "Infinite Spark is active for 24 hours. Play any game freely!"
-          : `Day ${complete.day} is locked in. Come back tomorrow to keep your streak!`,
+          ? `+${xp} XP earned. Infinite Spark is active for 24 hours!`
+          : `+${xp} XP earned. Day ${complete.day} locked in — come back tomorrow!`,
       });
     } catch (err) {
       setError(formatWalletError(err) || "Check-in failed. Try again.");
@@ -261,152 +353,245 @@ export default function DailyCheckInModal({
     }
   }
 
+  function scrollDays(dir: -1 | 1) {
+    const el = daysRailRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * 120, behavior: "smooth" });
+  }
+
+  function scrollToRewards() {
+    daysRailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
   return createPortal(
     <>
-    <div className="player-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="player-modal daily-checkin-modal">
-        <h2 className="daily-checkin-heading">
-          <FlameIcon className="daily-checkin-heading-flame" />
-          Daily Streak
-          <FlameIcon className="daily-checkin-heading-flame" />
-        </h2>
-        <p className="daily-checkin-sub">
-          Check in once per day (resets 00:00 UTC) to keep your streak alive and
-          earn <span className="daily-checkin-sub-accent">Infinite Spark.</span>
-        </p>
+      <div className="player-modal-backdrop" role="dialog" aria-modal="true">
+        <div className="player-modal daily-checkin-modal">
+          <header className="daily-checkin-topbar">
+            <button
+              type="button"
+              className="daily-checkin-icon-btn"
+              aria-label="Close"
+              onClick={() => {
+                playTouchSfx();
+                onClose?.();
+              }}
+            >
+              <CloseIcon />
+            </button>
+            <span className="daily-checkin-brand">ArcadeX</span>
+            <span className="daily-checkin-topbar-spacer" aria-hidden />
+          </header>
 
-        <section className="daily-checkin-hero-card">
-          <div className="daily-checkin-hero-flame" aria-hidden>
-            <FlameIcon />
-          </div>
-          <div className="daily-checkin-hero-copy">
-            <p className="daily-checkin-section-label daily-checkin-section-label--light">
-              Your streak
-            </p>
-            <p className="daily-checkin-streak-value">
-              {displayStreak > 0 ? (
-                <>
-                  <span className="daily-checkin-streak-num">
-                    {displayStreak}
-                  </span>{" "}
-                  <span className="daily-checkin-streak-unit">
-                    Day{displayStreak === 1 ? "" : "s"}
-                  </span>
-                </>
-              ) : (
-                <span className="daily-checkin-streak-unit">Start today</span>
-              )}
-            </p>
-            <p className="daily-checkin-streak-hint">{streakHint}</p>
-          </div>
-        </section>
+          <h2 className="daily-checkin-heading">
+            <FlameIcon className="daily-checkin-heading-flame" />
+            Daily Streak
+            <FlameIcon className="daily-checkin-heading-flame" />
+          </h2>
+          <p className="daily-checkin-sub">
+            Check in once per day (resets 00:00 UTC) to keep your streak alive and
+            earn{" "}
+            <span className="daily-checkin-sub-accent">XP &amp; Infinite Spark.</span>
+          </p>
 
-        <section
-          className="daily-checkin-timeline"
-          aria-label={`${requiredDays}-day streak progress`}
-        >
-          {days.map((day) => {
-            const state = dayNodeState(
-              day,
-              currentDay,
-              checkInDay,
-              wouldReset
-            );
-            const isMilestone = day === requiredDays;
-
-            return (
-              <div
-                key={day}
-                className={`daily-checkin-day daily-checkin-day--${state}${
-                  isMilestone ? " daily-checkin-day--milestone" : ""
-                }`}
-              >
-                <div className="daily-checkin-day-node">
-                  {state === "done" ? (
-                    <span className="daily-checkin-check">
-                      <CheckIcon />
+          <section className="daily-checkin-board">
+            <div
+              className="daily-checkin-days-rail"
+              ref={daysRailRef}
+              aria-label={`${requiredDays}-day streak rewards`}
+            >
+              {days.map((day) => {
+                const state = dayNodeState(
+                  day,
+                  currentDay,
+                  checkInDay,
+                  wouldReset
+                );
+                const isMilestone = day === requiredDays;
+                return (
+                  <div
+                    key={day}
+                    className={`daily-checkin-day-card daily-checkin-day-card--${state}${
+                      isMilestone ? " daily-checkin-day-card--milestone" : ""
+                    }`}
+                  >
+                    <span className="daily-checkin-day-card-label">D{day}</span>
+                    <span className="daily-checkin-day-card-icon" aria-hidden>
+                      {state === "done" ? (
+                        <span className="daily-checkin-check-badge">
+                          <CheckIcon />
+                        </span>
+                      ) : isMilestone ? (
+                        <InfinitySparkIcon gradientId={`inf-${infinityGradId}-${day}`} />
+                      ) : (
+                        <XpCoinIcon uid={`${infinityGradId}-d${day}`} />
+                      )}
                     </span>
-                  ) : isMilestone ? (
-                    <span className="daily-checkin-day-chest" aria-hidden>
-                      <ChestIcon />
+                    <span className="daily-checkin-day-card-reward">
+                      {isMilestone ? "∞ Spark" : `${DAILY_XP} XP`}
                     </span>
-                  ) : (
-                    <span className="daily-checkin-day-num">{day}</span>
-                  )}
-                </div>
-                {state === "today" ? (
-                  <span className="daily-checkin-day-today">Today</span>
-                ) : (
-                  <span className="daily-checkin-day-label">Day {day}</span>
-                )}
+                    {state === "today" ? (
+                      <span className="daily-checkin-day-today">Today</span>
+                    ) : (
+                      <span className="daily-checkin-day-card-spacer" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="daily-checkin-progress" aria-hidden>
+              <div className="daily-checkin-progress-track">
+                <div
+                  className="daily-checkin-progress-fill"
+                  style={{ width: `${progressRatio * 100}%` }}
+                />
+                {days.map((day) => {
+                  const state = dayNodeState(
+                    day,
+                    currentDay,
+                    checkInDay,
+                    wouldReset
+                  );
+                  return (
+                    <span
+                      key={day}
+                      className={`daily-checkin-progress-node daily-checkin-progress-node--${state}`}
+                      style={{
+                        left: `${((day - 1) / Math.max(1, requiredDays - 1)) * 100}%`,
+                      }}
+                    >
+                      {state === "done" ? <CheckIcon /> : null}
+                    </span>
+                  );
+                })}
               </div>
-            );
-          })}
-        </section>
-
-        <section className="daily-checkin-reward-card">
-          <div className="daily-checkin-reward-row">
-            <div className="daily-checkin-reward-icon">
-              <InfinitySparkIcon gradientId={`inf-${infinityGradId}`} />
             </div>
-            <div className="daily-checkin-reward-copy">
-              <p className="daily-checkin-section-label">Next reward</p>
-              <p className="daily-checkin-reward-title">{nextRewardTitle}</p>
-              <p className="daily-checkin-reward-detail">{nextRewardDetail}</p>
+
+            <div className="daily-checkin-rail-nav">
+              <button
+                type="button"
+                className="daily-checkin-nav-btn"
+                aria-label="Previous days"
+                onClick={() => scrollDays(-1)}
+              >
+                ‹
+              </button>
+              <span className="daily-checkin-rail-hint">
+                Swipe to view all {requiredDays} days
+              </span>
+              <button
+                type="button"
+                className="daily-checkin-nav-btn"
+                aria-label="Next days"
+                onClick={() => scrollDays(1)}
+              >
+                ›
+              </button>
             </div>
-            <span className="daily-checkin-reward-badge">{nextRewardBadge}</span>
-          </div>
-        </section>
 
-        {error ? <p className="daily-checkin-error">{error}</p> : null}
+            <div className="daily-checkin-milestone-row">
+              <div className="daily-checkin-milestone-left">
+                <p className="daily-checkin-section-label daily-checkin-section-label--light">
+                  <CalendarIcon /> Next milestone
+                </p>
+                <div className="daily-checkin-milestone-reward">
+                  <span className="daily-checkin-milestone-icon" aria-hidden>
+                    {nextIsInfinite ? (
+                      <InfinitySparkIcon gradientId={`inf-ms-${infinityGradId}`} />
+                    ) : (
+                      <XpCoinIcon uid={`${infinityGradId}-ms`} />
+                    )}
+                  </span>
+                  <div>
+                    <p className="daily-checkin-reward-title">{nextRewardTitle}</p>
+                    <p className="daily-checkin-reward-detail">{nextRewardDetail}</p>
+                  </div>
+                  <span className="daily-checkin-reward-badge">{nextRewardBadge}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="daily-checkin-view-all"
+                onClick={scrollToRewards}
+              >
+                View All Rewards →
+              </button>
+            </div>
+          </section>
 
-        <button
-          type="button"
-          className="daily-checkin-btn"
-          disabled={loading || !walletAddress || Boolean(success)}
-          onClick={() => void handleCheckIn()}
-        >
-          <span className="daily-checkin-btn-main">
-            <ShieldCheckIcon />
-            {loading ? "Unlocking…" : "Daily Check In (No cost)"}
-          </span>
-          <span className="daily-checkin-btn-sub">Free daily check-in</span>
-        </button>
-      </div>
-    </div>
-    {success ? (
-      <div
-        className="spark-success-backdrop"
-        role="presentation"
-        onClick={() => finishSuccess()}
-      >
-        <div
-          className="spark-success-popup"
-          role="alertdialog"
-          aria-live="polite"
-          aria-labelledby="daily-streak-success-title"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="spark-success-popup__icon" aria-hidden>
-            ✓
-          </span>
-          <h3
-            id="daily-streak-success-title"
-            className="spark-success-popup__title"
-          >
-            {success.title}
-          </h3>
-          <p className="spark-success-popup__body">{success.body}</p>
+          <section className="daily-checkin-hero-card">
+            <div className="daily-checkin-hero-copy">
+              <p className="daily-checkin-section-label daily-checkin-section-label--light">
+                Your streak
+              </p>
+              <p className="daily-checkin-streak-value">
+                {displayStreak > 0 ? (
+                  <>
+                    <span className="daily-checkin-streak-num">
+                      {displayStreak}
+                    </span>{" "}
+                    <span className="daily-checkin-streak-unit">
+                      Day{displayStreak === 1 ? "" : "s"}
+                    </span>
+                  </>
+                ) : (
+                  <span className="daily-checkin-streak-unit">Start today</span>
+                )}
+              </p>
+              <p className="daily-checkin-streak-hint">{streakHint}</p>
+            </div>
+          </section>
+
+          {error ? <p className="daily-checkin-error">{error}</p> : null}
+
           <button
             type="button"
-            className="spark-success-popup__btn"
-            onClick={() => finishSuccess()}
+            className="daily-checkin-btn"
+            disabled={loading || !walletAddress || Boolean(success)}
+            onClick={() => void handleCheckIn()}
           >
-            Great!
+            <span className="daily-checkin-btn-main">
+              <ShieldCheckIcon />
+              {loading ? "Unlocking…" : "Daily Check In (No cost)"}
+            </span>
+            <span className="daily-checkin-btn-sub">No cost transaction</span>
           </button>
         </div>
       </div>
-    ) : null}
+      {success ? (
+        <div
+          className="spark-success-backdrop"
+          role="presentation"
+          onClick={() => finishSuccess()}
+        >
+          <div
+            className="spark-success-popup"
+            role="alertdialog"
+            aria-live="polite"
+            aria-labelledby="daily-streak-success-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="spark-success-popup__icon" aria-hidden>
+              ✓
+            </span>
+            <h3
+              id="daily-streak-success-title"
+              className="spark-success-popup__title"
+            >
+              {success.title}
+            </h3>
+            <p className="spark-success-popup__body">{success.body}</p>
+            <button
+              type="button"
+              className="spark-success-popup__btn"
+              onClick={() => finishSuccess()}
+            >
+              Great!
+            </button>
+          </div>
+        </div>
+      ) : null}
     </>,
     document.body
   );

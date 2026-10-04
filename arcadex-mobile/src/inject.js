@@ -26,6 +26,9 @@ export function buildBootstrapInject({ session, sparkState }) {
       window.__ARCADEX_BRIDGE__ = 'mwa-v1';
       try {
         document.documentElement.classList.add('arcadex-native-shell');
+        // Native GameScreen already clears the status bar — avoid a second inset.
+        document.documentElement.style.setProperty('--app-safe-top', '0px');
+        document.documentElement.style.setProperty('--app-safe-bottom', '0px');
       } catch (e) {}
       try {
         localStorage.setItem('arcadex_guest_sparks', ${escapeForJsString(sparkJson)});

@@ -1518,6 +1518,7 @@ function activityEntryFromCounters(
     activeDays: counters.activeDays,
     txs: counters.txs,
     spendUnits: counters.spendUnits,
+    checkIns: counters.checkIns,
     updatedAt: counters.updatedAt,
   };
 }
@@ -1663,7 +1664,17 @@ export async function recordActivityEvent(
       next.lastPlayAt = now;
     }
 
-    if (kind === "tx" || kind === "spend" || kind === "play" || kind === "visit") {
+    if (kind === "checkin") {
+      next.checkIns += 1;
+    }
+
+    if (
+      kind === "tx" ||
+      kind === "spend" ||
+      kind === "play" ||
+      kind === "visit" ||
+      kind === "checkin"
+    ) {
       if (next.lastActiveDay !== day) {
         next.activeDays += 1;
         next.lastActiveDay = day;
@@ -1685,7 +1696,8 @@ export async function recordActivityEvent(
       kind === "visit" &&
       existing.lastActiveDay === day &&
       next.sparksSpent === existing.sparksSpent &&
-      next.activeDays === existing.activeDays
+      next.activeDays === existing.activeDays &&
+      next.checkIns === existing.checkIns
     ) {
       return;
     }

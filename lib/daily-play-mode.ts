@@ -14,19 +14,19 @@ export const DEFAULT_SHUFFLE_CAMPAIGN_ID = Number(
 
 /**
  * Server + build-time mode.
- * Cloudflare: set `DAILY_PLAY_MODE=shuffle` (runtime) and/or
- * `NEXT_PUBLIC_DAILY_PLAY_MODE=shuffle` (must rebuild for client inlining).
+ * Cloudflare: set `DAILY_PLAY_MODE=streak` (runtime) and/or
+ * `NEXT_PUBLIC_DAILY_PLAY_MODE=streak` (must rebuild for client inlining).
  *
- * Default is **shuffle** for ArcadeX Solana / Seeker APK.
- * Set `DAILY_PLAY_MODE=streak` when you are ready to activate streak.
+ * Default is **streak** (7-day Daily Streak). Shuffle code remains but stays dormant
+ * unless you explicitly set `DAILY_PLAY_MODE=shuffle`.
  */
 export function getDailyPlayMode(): DailyPlayMode {
   const mode = (
     process.env.DAILY_PLAY_MODE?.trim() ||
     process.env.NEXT_PUBLIC_DAILY_PLAY_MODE?.trim() ||
-    "shuffle"
+    "streak"
   ).toLowerCase();
-  return mode === "streak" ? "streak" : "shuffle";
+  return mode === "shuffle" ? "shuffle" : "streak";
 }
 
 export function isShuffleDailyPlay(): boolean {

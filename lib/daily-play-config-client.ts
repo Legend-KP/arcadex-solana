@@ -7,11 +7,12 @@ let inflight: Promise<DailyPlayConfig> | null = null;
 
 function fallbackConfig(): DailyPlayConfig {
   const raw = (
-    process.env.NEXT_PUBLIC_DAILY_PLAY_MODE?.trim() || "shuffle"
+    process.env.NEXT_PUBLIC_DAILY_PLAY_MODE?.trim() || "streak"
   ).toLowerCase();
-  const mode: DailyPlayMode = raw === "streak" ? "streak" : "shuffle";
+  const mode: DailyPlayMode = raw === "shuffle" ? "shuffle" : "streak";
   const campaignId = Number(
-    process.env.NEXT_PUBLIC_SHUFFLE_CAMPAIGN_ID?.trim() ||
+    process.env.NEXT_PUBLIC_STREAK_CAMPAIGN_ID?.trim() ||
+      process.env.NEXT_PUBLIC_SHUFFLE_CAMPAIGN_ID?.trim() ||
       (mode === "shuffle" ? "3" : "1")
   );
   return {

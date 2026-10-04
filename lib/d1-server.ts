@@ -1390,6 +1390,7 @@ type ActivityRow = {
   active_days: number;
   txs: number;
   spend_units: number;
+  check_ins?: number | null;
   last_active_day: string | null;
   last_play_at: number | null;
   updated_at: number | null;
@@ -1405,6 +1406,7 @@ type ActivityLbRow = {
   active_days: number;
   txs: number;
   spend_units: number;
+  check_ins?: number | null;
   updated_at: number | null;
 };
 
@@ -1415,6 +1417,7 @@ function activityRowToCounters(row: ActivityRow | null): ActivityCounters {
     activeDays: row.active_days,
     txs: row.txs,
     spendUnits: row.spend_units,
+    checkIns: row.check_ins ?? 0,
     lastActiveDay: row.last_active_day ?? undefined,
     lastPlayAt: row.last_play_at ?? undefined,
     updatedAt: row.updated_at ?? undefined,
@@ -1434,6 +1437,7 @@ function activityEntryFromCounters(
     activeDays: counters.activeDays,
     txs: counters.txs,
     spendUnits: counters.spendUnits,
+    checkIns: counters.checkIns,
     updatedAt: counters.updatedAt,
   };
 }
@@ -1447,6 +1451,7 @@ function lbRowToEntry(row: ActivityLbRow): ActivityLeaderboardEntry {
     activeDays: row.active_days,
     txs: row.txs,
     spendUnits: row.spend_units,
+    checkIns: row.check_ins ?? 0,
     updatedAt: row.updated_at ?? undefined,
   });
 }
@@ -1460,14 +1465,15 @@ function activityCountersStatement(
   return db
     .prepare(
       `INSERT INTO user_activity (
-         wallet, week_id, sparks_spent, active_days, txs, spend_units,
+         wallet, week_id, sparks_spent, active_days, txs, spend_units, check_ins,
          last_active_day, last_play_at, updated_at, name
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(wallet, week_id) DO UPDATE SET
          sparks_spent = excluded.sparks_spent,
          active_days = excluded.active_days,
          txs = excluded.txs,
          spend_units = excluded.spend_units,
+         check_ins = excluded.check_ins,
          last_active_day = excluded.last_active_day,
          last_play_at = excluded.last_play_at,
          updated_at = excluded.updated_at,
@@ -1480,6 +1486,7 @@ function activityCountersStatement(
       counters.activeDays,
       counters.txs,
       counters.spendUnits,
+      counters.checkIns,
       counters.lastActiveDay ?? null,
       counters.lastPlayAt ?? null,
       counters.updatedAt ?? null,
@@ -1496,8 +1503,9 @@ function activityLeaderboardStatement(
   return db
     .prepare(
       `INSERT INTO activity_leaderboard_entries (
-         week_id, wallet, name, score, sparks_spent, active_days, txs, spend_units, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         week_id, wallet, name, score, sparks_spent, active_days, txs, spend_units,
+         check_ins, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(week_id, wallet) DO UPDATE SET
          name = excluded.name,
          score = excluded.score,
@@ -1505,6 +1513,7 @@ function activityLeaderboardStatement(
          active_days = excluded.active_days,
          txs = excluded.txs,
          spend_units = excluded.spend_units,
+         check_ins = excluded.check_ins,
          updated_at = excluded.updated_at`
     )
     .bind(
@@ -1516,6 +1525,7 @@ function activityLeaderboardStatement(
       entry.activeDays ?? 0,
       entry.txs ?? 0,
       entry.spendUnits ?? 0,
+      entry.checkIns ?? 0,
       entry.updatedAt ?? null
     );
 }
@@ -1530,6 +1540,7 @@ function allTimeXpStatement(
     activeDays: number;
     txs: number;
     spendUnits: number;
+    checkIns: number;
   },
   updatedAt: number
 ): D1PreparedStatement | null {
@@ -1538,21 +1549,23 @@ function allTimeXpStatement(
     delta.plays <= 0 &&
     delta.activeDays <= 0 &&
     delta.txs <= 0 &&
-    delta.spendUnits <= 0
+    delta.spendUnits <= 0 &&
+    delta.checkIns <= 0
   ) {
     return null;
   }
   return db
     .prepare(
       `INSERT INTO user_xp_all_time (
-         wallet, xp, plays, active_days, txs, spend_units, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+         wallet, xp, plays, active_days, txs, spend_units, check_ins, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(wallet) DO UPDATE SET
          xp = user_xp_all_time.xp + excluded.xp,
          plays = user_xp_all_time.plays + excluded.plays,
          active_days = user_xp_all_time.active_days + excluded.active_days,
          txs = user_xp_all_time.txs + excluded.txs,
          spend_units = user_xp_all_time.spend_units + excluded.spend_units,
+         check_ins = user_xp_all_time.check_ins + excluded.check_ins,
          updated_at = excluded.updated_at`
     )
     .bind(
@@ -1562,6 +1575,7 @@ function allTimeXpStatement(
       Math.max(0, delta.activeDays),
       Math.max(0, delta.txs),
       Math.max(0, delta.spendUnits),
+      Math.max(0, delta.checkIns),
       updatedAt
     );
 }
@@ -1597,7 +1611,7 @@ export async function recordActivityEvent(
       db
         .prepare(
           `SELECT wallet, week_id, sparks_spent, active_days, txs, spend_units,
-                  last_active_day, last_play_at, updated_at, name
+                  check_ins, last_active_day, last_play_at, updated_at, name
            FROM user_activity WHERE wallet = ? AND week_id = ?`
         )
         .bind(wallet, weekId),
@@ -1623,11 +1637,16 @@ export async function recordActivityEvent(
       next.lastPlayAt = now;
     }
 
+    if (kind === "checkin") {
+      next.checkIns += 1;
+    }
+
     if (
       kind === "tx" ||
       kind === "spend" ||
       kind === "play" ||
-      kind === "visit"
+      kind === "visit" ||
+      kind === "checkin"
     ) {
       if (next.lastActiveDay !== day) {
         next.activeDays += 1;
@@ -1650,7 +1669,8 @@ export async function recordActivityEvent(
       kind === "visit" &&
       existing.lastActiveDay === day &&
       next.sparksSpent === existing.sparksSpent &&
-      next.activeDays === existing.activeDays
+      next.activeDays === existing.activeDays &&
+      next.checkIns === existing.checkIns
     ) {
       return;
     }
@@ -1666,6 +1686,7 @@ export async function recordActivityEvent(
         activeDays: Math.max(0, next.activeDays - existing.activeDays),
         txs: Math.max(0, next.txs - existing.txs),
         spendUnits: Math.max(0, next.spendUnits - existing.spendUnits),
+        checkIns: Math.max(0, next.checkIns - existing.checkIns),
       },
       now
     );
@@ -1712,7 +1733,8 @@ export async function fetchActivityLeaderboardFromServer(
   const db = await requireD1();
   const { results } = await db
     .prepare(
-      `SELECT week_id, wallet, name, score, sparks_spent, active_days, txs, spend_units, updated_at
+      `SELECT week_id, wallet, name, score, sparks_spent, active_days, txs, spend_units,
+              check_ins, updated_at
        FROM activity_leaderboard_entries
        WHERE week_id = ? AND sparks_spent > 0
        ORDER BY score DESC, updated_at ASC
@@ -1738,7 +1760,7 @@ export async function fetchUserActivityFromServer(
   const row = await db
     .prepare(
       `SELECT wallet, week_id, sparks_spent, active_days, txs, spend_units,
-              last_active_day, last_play_at, updated_at, name
+              check_ins, last_active_day, last_play_at, updated_at, name
        FROM user_activity WHERE wallet = ? AND week_id = ?`
     )
     .bind(wallet, weekId)

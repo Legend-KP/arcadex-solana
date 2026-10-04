@@ -578,37 +578,64 @@ a { color: inherit; text-decoration: none; }
 .spark-panel__status {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 22px 16px 14px;
+  align-items: stretch;
+  gap: 14px;
+  padding: 18px 14px 14px;
   margin-bottom: 18px;
   border-radius: 22px;
   border: 1px solid rgba(167, 139, 250, 0.28);
   background:
-    radial-gradient(circle at 50% 0%, rgba(124, 58, 237, 0.35), transparent 42%),
+    radial-gradient(circle at 18% 20%, rgba(124, 58, 237, 0.35), transparent 42%),
     linear-gradient(180deg, #2a1560 0%, #140a36 55%, #0b0620 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 10px 26px rgba(15, 23, 42, 0.18);
-  text-align: center;
+  text-align: left;
 }
 
-.spark-panel__hero-ring {
-  width: 72px;
-  height: 72px;
-  margin-bottom: 12px;
-  border-radius: 50%;
+.spark-panel__status-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: 5px solid #fbbf24;
-  box-shadow:
-    0 0 0 3px rgba(251, 191, 36, 0.18),
-    0 0 18px rgba(251, 191, 36, 0.35),
-    inset 0 0 12px rgba(251, 191, 36, 0.12);
-  background: radial-gradient(circle at 40% 30%, rgba(251, 191, 36, 0.12), transparent 60%);
+  gap: 16px;
 }
 
-.spark-panel__hero-bolt {
+.spark-panel__status-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.spark-segment-ring {
+  position: relative;
+  flex-shrink: 0;
+  width: 92px;
+  height: 92px;
+  display: inline-grid;
+  place-items: center;
+}
+
+.spark-segment-ring__svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.35));
+}
+
+.spark-segment-ring__arc {
+  stroke-width: 9;
+}
+
+.spark-segment-ring__arc--on {
+  stroke: #fbbf24;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.85));
+}
+
+.spark-segment-ring__arc--off {
+  stroke: rgba(251, 191, 36, 0.22);
+}
+
+.spark-segment-ring__bolt {
+  position: relative;
+  z-index: 1;
   font-size: 34px;
   line-height: 1;
   color: #fbbf24;
@@ -624,7 +651,7 @@ a { color: inherit; text-decoration: none; }
 
 .spark-panel__count-text strong {
   font-family: var(--font-head);
-  font-size: 40px;
+  font-size: 36px;
   font-weight: 900;
   color: #fbbf24;
   letter-spacing: 1px;
@@ -633,16 +660,31 @@ a { color: inherit; text-decoration: none; }
 
 .spark-panel__count-text--infinite {
   font-family: var(--font-head);
-  font-size: 22px;
+  font-size: 20px;
   color: #fbbf24;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .spark-panel__count-caption {
-  margin: 2px 0 14px;
+  margin: 2px 0 8px;
   font-size: 14px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
+}
+
+.spark-panel__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.spark-panel__timer-icon {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.85;
 }
 
 .spark-panel__badge {
@@ -1841,9 +1883,15 @@ html.arcadex-native-shell body {
   background: #000;
 }
 
+/* Native shell already pads for the status bar in GameScreen. */
+html.arcadex-native-shell {
+  --app-safe-top: 0px;
+  --app-safe-bottom: 0px;
+}
+
 .game-close-btn {
   position: absolute;
-  top: max(12px, env(safe-area-inset-top, 0px));
+  top: max(12px, var(--app-safe-top, env(safe-area-inset-top, 0px)));
   left: max(12px, env(safe-area-inset-left, 0px));
   z-index: 120;
   display: flex;
@@ -4116,17 +4164,57 @@ html.arcadex-native-shell body {
   box-shadow: none;
 }
 
-/* ?? Daily streak check-in ??????????????????????????????? */
+/* ── Daily streak check-in ─────────────────────────────────────── */
 .daily-checkin-modal {
   position: relative;
   text-align: center;
   gap: 0;
-  padding: 24px 16px 22px;
-  max-width: 400px;
-  overflow: hidden;
+  padding: 14px 14px 20px;
+  max-width: 420px;
+  max-height: min(92dvh, 760px);
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
-    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(167, 139, 250, 0.18), transparent 55%),
-    var(--surface);
+    radial-gradient(ellipse 90% 45% at 50% -8%, rgba(167, 139, 250, 0.22), transparent 55%),
+    linear-gradient(180deg, #f8f7ff 0%, #ffffff 40%);
+}
+
+.daily-checkin-topbar {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.daily-checkin-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.daily-checkin-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.daily-checkin-brand {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+}
+
+.daily-checkin-topbar-spacer {
+  width: 36px;
+  height: 36px;
 }
 
 .daily-checkin-heading {
@@ -4151,7 +4239,7 @@ html.arcadex-native-shell body {
 }
 
 .daily-checkin-sub {
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
@@ -4163,58 +4251,287 @@ html.arcadex-native-shell body {
   font-weight: 800;
 }
 
+.daily-checkin-board {
+  background: linear-gradient(165deg, #1e1b4b 0%, #312e81 55%, #1e1b4b 100%);
+  border-radius: 22px;
+  padding: 14px 10px 12px;
+  margin-bottom: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 28px rgba(49, 46, 129, 0.28);
+}
+
+.daily-checkin-days-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding: 4px 2px 10px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.daily-checkin-days-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.daily-checkin-day-card {
+  flex: 0 0 68px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 112px;
+  padding: 10px 6px 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.daily-checkin-day-card--today {
+  border-color: rgba(196, 181, 253, 0.75);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.35);
+  background: rgba(124, 58, 237, 0.28);
+}
+
+.daily-checkin-day-card--done {
+  border-color: rgba(167, 139, 250, 0.55);
+  background: rgba(124, 58, 237, 0.22);
+}
+
+.daily-checkin-day-card--milestone {
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.daily-checkin-day-card-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.daily-checkin-day-card-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+}
+
+.daily-checkin-day-card-icon svg {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25));
+}
+
+.daily-checkin-check-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #7c3aed;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.35);
+}
+
+.daily-checkin-check-badge svg {
+  width: 18px;
+  height: 18px;
+}
+
+.daily-checkin-day-card-reward {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: nowrap;
+}
+
+.daily-checkin-day-card-spacer {
+  height: 18px;
+}
+
+.daily-checkin-day-today {
+  font-size: 9px;
+  font-weight: 800;
+  color: #6d28d9;
+  background: #fff;
+  padding: 3px 8px;
+  border-radius: 999px;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+}
+
+.daily-checkin-progress {
+  padding: 2px 10px 8px;
+}
+
+.daily-checkin-progress-track {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  margin: 10px 8px 18px;
+}
+
+.daily-checkin-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.daily-checkin-progress-node {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.daily-checkin-progress-node svg {
+  width: 10px;
+  height: 10px;
+}
+
+.daily-checkin-progress-node--done {
+  background: #7c3aed;
+  border-color: #c4b5fd;
+}
+
+.daily-checkin-progress-node--today {
+  background: #fbbf24;
+  border-color: #fde68a;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.28);
+}
+
+.daily-checkin-rail-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px 10px;
+}
+
+.daily-checkin-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  color: #4c1d95;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}
+
+.daily-checkin-rail-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.daily-checkin-milestone-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 8px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.daily-checkin-milestone-left {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.daily-checkin-milestone-reward {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.daily-checkin-milestone-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.daily-checkin-milestone-icon svg {
+  width: 36px;
+  height: 36px;
+}
+
+.daily-checkin-view-all {
+  border: none;
+  background: transparent;
+  color: #c4b5fd;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 0;
+}
+
 .daily-checkin-hero-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   text-align: center;
   background: linear-gradient(125deg, #2e1065 0%, #5b21b6 48%, #312e81 100%);
   border-radius: 20px;
-  padding: 16px 16px 16px 14px;
+  padding: 16px 16px;
   color: #fff;
   margin-bottom: 12px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
     0 10px 24px rgba(76, 29, 149, 0.28);
+  position: relative;
+  overflow: hidden;
 }
 
-.daily-checkin-hero-flame {
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
+.daily-checkin-hero-card::before,
+.daily-checkin-hero-card::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background:
-    radial-gradient(circle at 35% 30%, #c4b5fd 0%, #7c3aed 48%, #4c1d95 100%);
-  box-shadow:
-    0 0 0 6px rgba(167, 139, 250, 0.22),
-    0 8px 20px rgba(91, 33, 182, 0.4);
-  animation: daily-checkin-flame-pulse 2.4s ease-in-out infinite;
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
 
-.daily-checkin-hero-flame svg {
-  width: 30px;
-  height: 30px;
+.daily-checkin-hero-card::before {
+  top: 14px;
+  right: 22px;
 }
 
-@keyframes daily-checkin-flame-pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 6px rgba(167, 139, 250, 0.22), 0 8px 20px rgba(91, 33, 182, 0.4);
-  }
-  50% {
-    transform: scale(1.04);
-    box-shadow: 0 0 0 10px rgba(167, 139, 250, 0.28), 0 12px 26px rgba(91, 33, 182, 0.45);
-  }
+.daily-checkin-hero-card::after {
+  bottom: 18px;
+  left: 28px;
+  width: 4px;
+  height: 4px;
+  opacity: 0.7;
 }
 
 .daily-checkin-hero-copy {
   min-width: 0;
   width: 100%;
   text-align: center;
+  position: relative;
+  z-index: 1;
 }
 
 .daily-checkin-section-label {
@@ -4224,6 +4541,14 @@ html.arcadex-native-shell body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #7c3aed;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.daily-checkin-section-label svg {
+  width: 14px;
+  height: 14px;
 }
 
 .daily-checkin-section-label--light {
@@ -4255,180 +4580,24 @@ html.arcadex-native-shell body {
   color: rgba(255, 255, 255, 0.8);
 }
 
-.daily-checkin-timeline {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
-  align-items: start;
-  background: linear-gradient(180deg, #1e1b4b 0%, #312e81 100%);
-  border-radius: 18px;
-  padding: 18px 8px 12px;
-  margin-bottom: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.daily-checkin-day {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.daily-checkin-day-gift {
-  position: absolute;
-  top: -12px;
-  width: 16px;
-  height: 16px;
-  z-index: 1;
-}
-
-.daily-checkin-day-gift svg {
-  width: 16px;
-  height: 16px;
-  filter: drop-shadow(0 2px 4px rgba(245, 158, 11, 0.45));
-}
-
-.daily-checkin-day-node {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.08);
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.daily-checkin-day--done .daily-checkin-day-node {
-  background: #7c3aed;
-  border-color: #a78bfa;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
-}
-
-.daily-checkin-day--today .daily-checkin-day-node {
-  background: rgba(124, 58, 237, 0.35);
-  border-color: #c4b5fd;
-  box-shadow:
-    0 0 0 3px rgba(167, 139, 250, 0.28),
-    0 0 16px rgba(167, 139, 250, 0.35);
-  color: #fff;
-}
-
-.daily-checkin-day--milestone .daily-checkin-day-node {
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
-  background: linear-gradient(160deg, #fbbf24 0%, #d97706 100%);
-  border-color: #fde68a;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
-}
-
-.daily-checkin-day-num {
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.daily-checkin-check {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: transparent;
-  display: grid;
-  place-items: center;
-}
-
-.daily-checkin-check svg {
-  width: 16px;
-  height: 16px;
-}
-
-.daily-checkin-day-chest {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-}
-
-.daily-checkin-day-chest svg {
-  width: 24px;
-  height: 24px;
-}
-
-.daily-checkin-day-label {
-  font-size: 9px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.55);
-  white-space: nowrap;
-}
-
-.daily-checkin-day-today {
-  font-size: 9px;
-  font-weight: 800;
-  color: #6d28d9;
-  background: #fff;
-  padding: 3px 7px;
-  border-radius: 999px;
-  line-height: 1;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
-}
-
-.daily-checkin-reward-card {
-  border: 1px solid rgba(124, 58, 237, 0.18);
-  border-radius: 16px;
-  padding: 12px 12px 14px;
-  background: #fff;
-  margin-bottom: 14px;
-}
-
-.daily-checkin-reward-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  text-align: center;
-}
-
-.daily-checkin-reward-icon {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-}
-
-.daily-checkin-reward-icon svg {
-  width: 44px;
-  height: 44px;
-  filter: drop-shadow(0 4px 10px rgba(245, 158, 11, 0.35));
-}
-
-.daily-checkin-reward-copy {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-  text-align: center;
-}
-
-.daily-checkin-reward-copy .daily-checkin-section-label {
-  margin-bottom: 2px;
-}
-
 .daily-checkin-reward-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
-  color: var(--text);
+  color: #fff;
+  text-align: left;
 }
 
 .daily-checkin-reward-detail {
   margin: 2px 0 0;
   font-size: 12px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.7);
+  text-align: left;
 }
 
 .daily-checkin-reward-badge {
   flex-shrink: 0;
+  margin-left: auto;
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 11px;
@@ -4450,7 +4619,7 @@ html.arcadex-native-shell body {
   padding: 13px 16px 12px;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(90deg, #7c3aed 0%, #6366f1 48%, #3b82f6 100%);
+  background: linear-gradient(90deg, #3b82f6 0%, #6366f1 48%, #a78bfa 100%);
   box-shadow: 0 8px 22px rgba(99, 102, 241, 0.35);
   display: flex;
   flex-direction: column;
@@ -4492,14 +4661,13 @@ html.arcadex-native-shell body {
 }
 
 @media (max-width: 360px) {
-  .daily-checkin-day-node {
-    width: 30px;
-    height: 30px;
+  .daily-checkin-day-card {
+    flex-basis: 62px;
+    min-height: 104px;
   }
 
-  .daily-checkin-day--milestone .daily-checkin-day-node {
-    width: 34px;
-    height: 34px;
+  .daily-checkin-heading {
+    font-size: 22px;
   }
 
   .daily-checkin-streak-value {

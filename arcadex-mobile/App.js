@@ -2,7 +2,7 @@ import "react-native-get-random-values";
 import { Buffer } from "buffer";
 global.Buffer = global.Buffer || Buffer;
 
-import { Component, useCallback, useEffect, useState } from "react";
+import { Component, useCallback, useEffect, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import * as Haptics from "expo-haptics";
@@ -14,6 +14,9 @@ import {
   bootstrapPlayer,
   confirmSolanaPayment,
   createWalletSession,
+  fetchShuffleCanCheckIn,
+  hasStreakPromptedToday,
+  markStreakPromptedToday,
   savePlayerName,
 } from "./src/api";
 import { clearSession, loadSession, saveSession } from "./src/session";
@@ -26,6 +29,7 @@ import HomeScreen from "./src/screens/HomeScreen";
 import WalletSheet from "./src/screens/WalletSheet";
 import SparksSheet from "./src/screens/SparksSheet";
 import PlayerNameSheet from "./src/screens/PlayerNameSheet";
+import ShuffleSheet from "./src/screens/ShuffleSheet";
 import GameScreen from "./src/screens/GameScreen";
 import { pushRecentPlayId } from "./src/game-utils";
 import { colors } from "./src/theme";
@@ -83,6 +87,8 @@ function ArcadeShell() {
   const [nameError, setNameError] = useState("");
   const [nameIntent, setNameIntent] = useState("setup");
   const [booted, setBooted] = useState(false);
+  const [shuffleOpen, setShuffleOpen] = useState(false);
+  const shufflePromptedForRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +119,50 @@ function ArcadeShell() {
   const hideSplash = useCallback(() => {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
+
+  // Daily Streak: once per UTC day on first home open — never when a game is open.
+  useEffect(() => {
+    if (!booted || screen !== "home") return;
+    if (nameOpen || walletOpen || sparksOpen || shuffleOpen) return;
+    const wallet = session?.address?.trim();
+    if (!wallet) return;
+    if (!session?.playerName?.trim()) return;
+    if (shufflePromptedForRef.current === wallet) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (await hasStreakPromptedToday(wallet)) {
+          if (!cancelled) shufflePromptedForRef.current = wallet;
+          return;
+        }
+        const can = await fetchShuffleCanCheckIn(wallet);
+        if (cancelled) return;
+        shufflePromptedForRef.current = wallet;
+        if (can) {
+          await markStreakPromptedToday(wallet);
+          if (!cancelled) setShuffleOpen(true);
+        } else {
+          await markStreakPromptedToday(wallet);
+        }
+      } catch {
+        if (!cancelled) shufflePromptedForRef.current = wallet;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    booted,
+    screen,
+    nameOpen,
+    walletOpen,
+    sparksOpen,
+    shuffleOpen,
+    session?.address,
+    session?.playerName,
+  ]);
 
   const connectWallet = useCallback(async () => {
     setWalletBusy(true);
@@ -263,7 +313,7 @@ function ArcadeShell() {
   if (screen === "game" && activeGame) {
     return (
       <>
-        <StatusBar style="light" translucent backgroundColor="transparent" />
+        <StatusBar style="light" translucent={false} backgroundColor="#000000" />
         <GameScreen
           game={activeGame}
           session={session}
@@ -354,6 +404,17 @@ function ArcadeShell() {
         onSubmit={submitPlayerName}
         onClose={() => {
           if (nameIntent === "edit") setNameOpen(false);
+        }}
+      />
+
+      <ShuffleSheet
+        visible={shuffleOpen}
+        session={session}
+        sparkState={sparks?.state}
+        onClose={() => {
+          const wallet = session?.address?.trim();
+          if (wallet) void markStreakPromptedToday(wallet);
+          setShuffleOpen(false);
         }}
       />
     </View>

@@ -146,6 +146,65 @@ export function gamePlayUrl(gameId) {
   return `${apiBase()}/game/${encodeURIComponent(gameId)}`;
 }
 
+export function dailyShuffleUrl() {
+  // Host route still used by the native overlay; UI is Daily Streak when mode=streak.
+  return `${apiBase()}/daily-shuffle`;
+}
+
+function utcDayKey(now = Date.now()) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+function streakPromptedKey(walletAddress, campaignId = 1) {
+  return `arcadex_streak_prompted_utc:${String(walletAddress).trim()}:${campaignId}`;
+}
+
+/** True if we already auto-opened Daily Streak for this wallet on today's UTC day. */
+export async function hasStreakPromptedToday(walletAddress, campaignId = 1) {
+  if (!walletAddress) return false;
+  try {
+    const AsyncStorage = (
+      await import("@react-native-async-storage/async-storage")
+    ).default;
+    const raw = await AsyncStorage.getItem(
+      streakPromptedKey(walletAddress, campaignId)
+    );
+    return raw === utcDayKey();
+  } catch {
+    return false;
+  }
+}
+
+export async function markStreakPromptedToday(walletAddress, campaignId = 1) {
+  if (!walletAddress) return;
+  try {
+    const AsyncStorage = (
+      await import("@react-native-async-storage/async-storage")
+    ).default;
+    await AsyncStorage.setItem(
+      streakPromptedKey(walletAddress, campaignId),
+      utcDayKey()
+    );
+  } catch {
+    // ignore
+  }
+}
+
+/** Returns true when the wallet can still do today's Daily Streak check-in. */
+export async function fetchShuffleCanCheckIn(walletAddress, campaignId = 1) {
+  if (!walletAddress) return false;
+  const params = new URLSearchParams({
+    walletAddress,
+    campaignId: String(campaignId),
+  });
+  const res = await fetch(`${apiBase()}/api/streak/status?${params}`, {
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return false;
+  return Boolean(data.canCheckIn);
+}
+
 export function truncateAddress(address, left = 4, right = 4) {
   if (!address) return "";
   if (address.length <= left + right + 1) return address;

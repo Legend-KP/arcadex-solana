@@ -3,6 +3,7 @@
  */
 
 import { requireD1 } from "@/lib/d1-client";
+import { INFINITE_SPARK_DURATION_MS } from "@/lib/infinite-spark";
 import {
   SHUFFLE_DAILY_USDT_BUDGET_MICRO,
   microToUsdt,
@@ -487,6 +488,7 @@ export async function applyStreakCheckIn(
   requiredDays: number;
   milestone: boolean;
   lastCheckInAt: number;
+  dayKey: string;
 }> {
   const progress = await getStreakProgress(wallet, campaignId);
   const status = deriveStreakStatus(progress, now);
@@ -496,7 +498,8 @@ export async function applyStreakCheckIn(
 
   const nextDay = status.streakWouldReset ? 1 : progress.currentDay + 1;
   const required = progress.requiredDays || DEFAULT_STREAK_REQUIRED_DAYS;
-  const milestone = nextDay >= required && !progress.milestoneClaimed;
+  // Every completed 7-day cycle can earn Infinite Spark again.
+  const milestone = nextDay >= required;
   const dayKey = utcDayKey(now);
   const db = await requireD1();
 
@@ -510,6 +513,7 @@ export async function applyStreakCheckIn(
          current_day = excluded.current_day,
          last_check_in_at = excluded.last_check_in_at,
          last_check_in_day_key = excluded.last_check_in_day_key,
+         milestone_claimed = excluded.milestone_claimed,
          updated_at = excluded.updated_at`
     )
     .bind(
@@ -519,7 +523,7 @@ export async function applyStreakCheckIn(
       now,
       dayKey,
       required,
-      milestone || progress.milestoneClaimed ? 1 : 0,
+      0,
       now
     )
     .run();
@@ -544,21 +548,98 @@ export async function applyStreakCheckIn(
     requiredDays: required,
     milestone,
     lastCheckInAt: now,
+    dayKey,
   };
 }
 
+/**
+ * Grant Infinite Spark for today's streak milestone (idempotent per day_key).
+ * Repeatable every completed 7-day cycle.
+ */
+export async function grantStreakInfiniteSpark(
+  wallet: string,
+  campaignId: string | number,
+  now = Date.now()
+): Promise<{ granted: boolean; alreadyGranted: boolean; infiniteUntil: number | null }> {
+  const db = await requireD1();
+  const dayKey = utcDayKey(now);
+  const completion = await db
+    .prepare(
+      `SELECT outcome_id, payout_signature FROM daily_play_completions
+       WHERE wallet = ? AND campaign_id = ? AND day_key = ? AND mode = 'streak'`
+    )
+    .bind(wallet, String(campaignId), dayKey)
+    .first<{ outcome_id: string | null; payout_signature: string | null }>();
+
+  if (!completion || completion.outcome_id !== "milestone") {
+    if (completion?.payout_signature === "infinite_spark") {
+      return { granted: false, alreadyGranted: true, infiniteUntil: null };
+    }
+    return { granted: false, alreadyGranted: false, infiniteUntil: null };
+  }
+
+  if (completion.payout_signature === "infinite_spark") {
+    return { granted: false, alreadyGranted: true, infiniteUntil: null };
+  }
+
+  await db
+    .prepare(
+      `INSERT INTO users (wallet, name, created_at, updated_at)
+       VALUES (?, '', ?, ?)
+       ON CONFLICT(wallet) DO UPDATE SET updated_at = excluded.updated_at`
+    )
+    .bind(wallet, now, now)
+    .run();
+
+  const row = await db
+    .prepare(`SELECT infinite_until, max, regen_ms, slots_json FROM sparks WHERE wallet = ?`)
+    .bind(wallet)
+    .first<{
+      infinite_until: number | null;
+      max: number;
+      regen_ms: number;
+      slots_json: string;
+    }>();
+
+  const base =
+    row?.infinite_until && row.infinite_until > now
+      ? row.infinite_until
+      : now;
+  const nextUntil = base + INFINITE_SPARK_DURATION_MS;
+
+  await db
+    .prepare(
+      `INSERT INTO sparks (wallet, max, regen_ms, slots_json, infinite_until)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(wallet) DO UPDATE SET infinite_until = excluded.infinite_until`
+    )
+    .bind(
+      wallet,
+      row?.max ?? 4,
+      row?.regen_ms ?? 3 * 60 * 60 * 1000,
+      row?.slots_json ?? "[]",
+      nextUntil
+    )
+    .run();
+
+  await db
+    .prepare(
+      `UPDATE daily_play_completions
+       SET payout_signature = 'infinite_spark'
+       WHERE wallet = ? AND campaign_id = ? AND day_key = ? AND mode = 'streak'`
+    )
+    .bind(wallet, String(campaignId), dayKey)
+    .run();
+
+  return { granted: true, alreadyGranted: false, infiniteUntil: nextUntil };
+}
+
+/** @deprecated Prefer grantStreakInfiniteSpark — kept for older callers. */
 export async function markStreakMilestoneClaimed(
   wallet: string,
   campaignId: string | number
 ): Promise<void> {
-  const db = await requireD1();
-  await db
-    .prepare(
-      `UPDATE streak_progress SET milestone_claimed = 1, updated_at = ?
-       WHERE wallet = ? AND campaign_id = ?`
-    )
-    .bind(Date.now(), wallet, String(campaignId))
-    .run();
+  await grantStreakInfiniteSpark(wallet, campaignId);
 }
 
 export function outcomePayloadFromDef(

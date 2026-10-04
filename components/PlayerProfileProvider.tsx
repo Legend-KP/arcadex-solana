@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import OnboardingModal from "@/components/OnboardingModal";
 import PlayerNameModal from "@/components/PlayerNameModal";
 import ConnectWalletModal from "@/components/ConnectWalletModal";
@@ -18,7 +19,10 @@ import {
   hasSeenMwaConnectPromptThisSession,
   markMwaConnectPromptSeen,
 } from "@/lib/use-solana-mwa-connect";
-import { isArcadexNativeShell } from "@/lib/arcadex-native-bridge";
+import {
+  isArcadexNativeShell,
+  notifyNativeShuffleDone,
+} from "@/lib/arcadex-native-bridge";
 import {
   getCachedSolanaAddress,
   hasCachedSolanaSignIn,
@@ -48,6 +52,10 @@ import {
   hasSeenStreakBroken,
   markStreakBrokenSeen,
 } from "@/lib/streak-broken-seen";
+import {
+  hasStreakPromptedToday,
+  markStreakPromptedToday,
+} from "@/lib/streak-prompted-today";
 import {
   fetchStreakStatus,
   type StreakStatus,
@@ -98,6 +106,13 @@ export default function PlayerProfileProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname() || "/";
+  const isGameRoute = pathname.startsWith("/game");
+  const isShuffleHostRoute =
+    pathname === "/daily-shuffle" || pathname.startsWith("/daily-shuffle/");
+  /** Shuffle / check-in only on home or the native shuffle overlay — never on games. */
+  const canPromptDailyPlay = pathname === "/" || isShuffleHostRoute;
+
   const [playerId, setPlayerId] = useState("");
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [walletAddress, setWalletAddress] = useState(
@@ -120,10 +135,15 @@ export default function PlayerProfileProvider({
   const [dailyGateResolved, setDailyGateResolved] = useState(false);
 
   useEffect(() => {
+    // Native shuffle overlay: skip onboarding chrome entirely.
+    if (isShuffleHostRoute) {
+      setShowOnboarding(false);
+      return;
+    }
     const unseen = !hasSeenOnboarding();
     setShowOnboarding(unseen);
     if (unseen) preloadOnboardingSlides();
-  }, []);
+  }, [isShuffleHostRoute]);
 
   const openOnboarding = useCallback(() => {
     setShowOnboarding(true);
@@ -229,12 +249,30 @@ export default function PlayerProfileProvider({
           setCheckInVisible(false);
         }
       } else {
+        // Once per UTC day on first app open. Server gates check-in by UTC day key;
+        // local marker prevents re-prompting after dismiss/complete until next UTC day.
+        if (hasStreakPromptedToday(wallet, config.campaignId)) {
+          const status = await fetchStreakStatus(wallet, config.campaignId, {
+            fresh: true,
+            mode: "streak",
+          });
+          setStreakStatus(status);
+          setCheckInVisible(false);
+          setDailyGateResolved(true);
+          return;
+        }
         const status = await fetchStreakStatus(wallet, config.campaignId, {
           fresh: true,
           mode: "streak",
         });
         setStreakStatus(status);
-        setCheckInVisible(Boolean(status.canCheckIn));
+        if (!status.canCheckIn) {
+          markStreakPromptedToday(wallet, config.campaignId);
+          setCheckInVisible(false);
+        } else {
+          markStreakPromptedToday(wallet, config.campaignId);
+          setCheckInVisible(true);
+        }
       }
     } catch (err) {
       console.warn("daily play refresh failed", err);
@@ -246,6 +284,12 @@ export default function PlayerProfileProvider({
 
   useEffect(() => {
     if (!isReady) return;
+    // Never prompt Daily Shuffle while a game is open (incl. native game WebView).
+    if (isGameRoute || !canPromptDailyPlay) {
+      setCheckInVisible(false);
+      setDailyGateResolved(true);
+      return;
+    }
     if (showOnboarding === true) return;
     if (showModal) return;
     const wallet = getCachedSolanaAddress() || getCachedWallet();
@@ -254,7 +298,15 @@ export default function PlayerProfileProvider({
       return;
     }
     void refreshStreakStatus();
-  }, [isReady, showOnboarding, showModal, walletAddress, refreshStreakStatus]);
+  }, [
+    isReady,
+    isGameRoute,
+    canPromptDailyPlay,
+    showOnboarding,
+    showModal,
+    walletAddress,
+    refreshStreakStatus,
+  ]);
 
   // After Phantom connect/sign-in: ask for name (new users), then daily shuffle.
   useEffect(() => {
@@ -350,14 +402,36 @@ export default function PlayerProfileProvider({
       if (wallet && dailyPlayMode === "shuffle") {
         markShuffleDoneToday(wallet, dailyCampaignId);
       }
+      if (wallet && dailyPlayMode === "streak") {
+        markStreakPromptedToday(wallet, dailyCampaignId);
+      }
       if (result.infiniteSparkGranted) {
         grantGuestInfiniteSpark();
       }
       setCheckInVisible(false);
+      if (isShuffleHostRoute) {
+        notifyNativeShuffleDone();
+      }
       void refreshStreakStatus();
     },
-    [walletAddress, dailyPlayMode, dailyCampaignId, refreshStreakStatus]
+    [
+      walletAddress,
+      dailyPlayMode,
+      dailyCampaignId,
+      isShuffleHostRoute,
+      refreshStreakStatus,
+    ]
   );
+
+  const handleDailyCheckInClose = useCallback(() => {
+    const wallet =
+      getCachedSolanaAddress() || getCachedWallet() || walletAddress;
+    if (wallet) markStreakPromptedToday(wallet, dailyCampaignId);
+    setCheckInVisible(false);
+    if (isShuffleHostRoute) {
+      notifyNativeShuffleDone();
+    }
+  }, [walletAddress, dailyCampaignId, isShuffleHostRoute]);
 
   const handleStreakBrokenContinue = useCallback(() => {
     if (walletAddress && streakStatus?.lastCheckInAt) {
@@ -409,6 +483,7 @@ export default function PlayerProfileProvider({
   // New flow: onboarding → wallet connect → name (required after connect).
   useEffect(() => {
     if (!isReady) return;
+    if (isShuffleHostRoute || isGameRoute) return;
     if (!onboardingResolved || onboardingVisible) return;
     if (showModal) return;
 
@@ -434,6 +509,8 @@ export default function PlayerProfileProvider({
     }
   }, [
     isReady,
+    isShuffleHostRoute,
+    isGameRoute,
     onboardingResolved,
     onboardingVisible,
     showModal,
@@ -464,6 +541,8 @@ export default function PlayerProfileProvider({
   const previousBrokenDays = streakStatus?.currentDay ?? 0;
   const lastBrokenCheckInAt = streakStatus?.lastCheckInAt ?? 0;
   const streakBrokenVisible =
+    canPromptDailyPlay &&
+    !isGameRoute &&
     dailyGateResolved &&
     dailyPlayMode === "streak" &&
     !streakBrokenDismissed &&
@@ -472,6 +551,8 @@ export default function PlayerProfileProvider({
     !hasSeenStreakBroken(solanaWallet, lastBrokenCheckInAt);
 
   const dailyShuffleVisible =
+    canPromptDailyPlay &&
+    !isGameRoute &&
     dailyGateResolved &&
     dailyPlayMode === "shuffle" &&
     checkInVisible &&
@@ -481,6 +562,8 @@ export default function PlayerProfileProvider({
     !onboardingVisible;
 
   const dailyCheckInVisible =
+    canPromptDailyPlay &&
+    !isGameRoute &&
     dailyGateResolved &&
     dailyPlayMode === "streak" &&
     checkInVisible &&
@@ -537,6 +620,7 @@ export default function PlayerProfileProvider({
         walletAddress={solanaWallet}
         status={streakStatus}
         onComplete={handleDailyComplete}
+        onClose={handleDailyCheckInClose}
       />
     </PlayerProfileContext.Provider>
   );
