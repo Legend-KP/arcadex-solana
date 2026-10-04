@@ -36,6 +36,8 @@ import { pushRecentPlayId } from "./src/game-utils";
 import { colors } from "./src/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+// Instant hide (no fade) so we cut straight onto the intro poster/video.
+SplashScreen.setOptions?.({ duration: 0, fade: false });
 
 class ShellErrorBoundary extends Component {
   constructor(props) {

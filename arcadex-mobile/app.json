@@ -8,13 +8,21 @@
     "userInterfaceStyle": "light",
     "scheme": "arcadex",
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#A27336"
+      "image": "./assets/splash-solid.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#FFFFFF"
     },
     "plugins": [
       "expo-dev-client",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/splash-solid.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
       "expo-video"
     ],
     "ios": {
