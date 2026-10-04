@@ -1733,6 +1733,16 @@ export function recordActivityEventBestEffort(
   scheduleWorkerWork(recordActivityEvent(walletAddress, kind, opts));
 }
 
+export async function countActivityParticipants(
+  weekId: string
+): Promise<number> {
+  const entries = await fetchActivityLeaderboardFromServer(
+    weekId,
+    ACTIVITY_TOP_MIRROR_SIZE
+  );
+  return entries.filter((e) => (e.sparksSpent ?? 0) > 0 || e.score > 0).length;
+}
+
 export async function fetchActivityLeaderboardFromServer(
   weekId: string,
   limit = ACTIVITY_LEADERBOARD_MAX_ENTRIES

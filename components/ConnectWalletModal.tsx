@@ -47,13 +47,14 @@ export default function ConnectWalletModal({
         aria-labelledby="connect-wallet-title"
       >
         <Logo variant="login" />
-        <p className="player-modal-subtitle">Welcome back</p>
+        <p className="player-modal-subtitle">Welcome to ArcadeX</p>
         <h2 id="connect-wallet-title" className="player-modal-title">
           Connect &amp; sign in
         </h2>
         <p className="player-modal-hint">
           Approve a free Sign-In message in Phantom, Seed Vault, Solflare, or
           any MWA wallet. No SOL is spent — this only proves wallet ownership.
+          Next you&apos;ll choose your player name.
         </p>
 
         {address ? (

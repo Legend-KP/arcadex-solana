@@ -110,6 +110,15 @@ export async function fetchUserActivityFromServer(
   );
 }
 
+export async function countActivityParticipants(
+  weekId: string
+): Promise<number> {
+  return withPlayerBackend(
+    () => d1.countActivityParticipants(weekId),
+    () => rtdb.countActivityParticipants(weekId)
+  );
+}
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 export async function fetchUserFromServer(

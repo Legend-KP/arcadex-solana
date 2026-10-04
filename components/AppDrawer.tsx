@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   FAQ_URL,
   PRIVACY_POLICY_URL,
@@ -29,7 +29,7 @@ const NAV: { id: AppView | "sparks"; label: string }[] = [
   { id: "home", label: "Home" },
   { id: "games", label: "Games" },
   { id: "contests", label: "Contests" },
-  { id: "leaderboard", label: "Global Leaderboard" },
+  { id: "leaderboard", label: "Weekly XP Board" },
   { id: "sparks", label: "Sparks" },
   { id: "achievements", label: "Achievements" },
 ];
@@ -45,6 +45,11 @@ export default function AppDrawer({
     usePlayerProfile();
   const solana = getCachedSolanaAddress();
   const address = walletAddress || solana || "";
+  const displayName = playerName || "Player";
+  const initial = useMemo(() => {
+    const ch = displayName.trim().charAt(0);
+    return ch ? ch.toUpperCase() : "P";
+  }, [displayName]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,25 +76,33 @@ export default function AppDrawer({
         aria-label="Menu"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="app-drawer__brand">
+        <div className="app-drawer__logo">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/thumbnails/arcadeX.webp" alt="" className="app-drawer__mark" />
+          <img src="/arcadeX.webp" alt="ArcadeX" className="app-drawer__mark" />
+        </div>
+
+        <div className="app-drawer__profile">
+          <div className="app-drawer__avatar" aria-hidden>
+            {initial}
+          </div>
           <div className="app-drawer__who">
-            <p className="app-drawer__name">{playerName || "Player"}</p>
+            <div className="app-drawer__name-row">
+              <p className="app-drawer__name">{displayName}</p>
+              <button
+                type="button"
+                className="app-drawer__edit"
+                onClick={() => {
+                  onClose();
+                  openNameEditor();
+                }}
+              >
+                Edit
+              </button>
+            </div>
             <p className="app-drawer__wallet">
-              {address ? truncateSolanaAddress(address) : "No wallet yet"}
+              {address ? truncateSolanaAddress(address, 6, 4) : "No wallet yet"}
             </p>
           </div>
-          <button
-            type="button"
-            className="app-drawer__edit"
-            onClick={() => {
-              onClose();
-              openNameEditor();
-            }}
-          >
-            Edit
-          </button>
         </div>
 
         <nav className="app-drawer__nav" aria-label="App">
@@ -117,10 +130,10 @@ export default function AppDrawer({
 
         <div className="app-drawer__footer">
           <a href={PRIVACY_POLICY_URL} target="_blank" rel="noopener noreferrer">
-            Privacy
+            Privacy Policy
           </a>
           <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">
-            Terms
+            Terms &amp; Conditions
           </a>
           <a href={FAQ_URL} target="_blank" rel="noopener noreferrer">
             FAQ

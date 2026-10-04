@@ -4,6 +4,7 @@ const KEYS = {
   token: "arcadex_wallet_session",
   address: "arcadex_solana_address",
   label: "arcadex_solana_label",
+  playerName: "arcadex_player_name",
   message: "arcadex_solana_signin_message",
   signature: "arcadex_solana_signin_signature",
 };
@@ -13,6 +14,7 @@ export async function loadSession() {
     KEYS.token,
     KEYS.address,
     KEYS.label,
+    KEYS.playerName,
     KEYS.message,
     KEYS.signature,
   ]);
@@ -21,6 +23,7 @@ export async function loadSession() {
     token: map[KEYS.token] || null,
     address: map[KEYS.address] || null,
     label: map[KEYS.label] || null,
+    playerName: map[KEYS.playerName] || null,
     message: map[KEYS.message] || null,
     signatureBase64: map[KEYS.signature] || null,
   };
@@ -30,12 +33,14 @@ export async function saveSession({
   token,
   address,
   label,
+  playerName,
   message,
   signatureBase64,
 }) {
   const pairs = [
     [KEYS.address, address || ""],
     [KEYS.label, label || ""],
+    [KEYS.playerName, playerName || ""],
     [KEYS.message, message || ""],
     [KEYS.signature, signatureBase64 || ""],
   ];
@@ -43,6 +48,7 @@ export async function saveSession({
   await AsyncStorage.multiSet(pairs.filter(([, v]) => v !== ""));
   if (!token) await AsyncStorage.removeItem(KEYS.token);
   if (!label) await AsyncStorage.removeItem(KEYS.label);
+  if (!playerName) await AsyncStorage.removeItem(KEYS.playerName);
 }
 
 export async function clearSession() {

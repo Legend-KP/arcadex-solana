@@ -108,6 +108,7 @@ export default function PlayerProfileProvider({
   const [nameIntent, setNameIntent] = useState<"create" | "edit">("create");
   const [showConnectWallet, setShowConnectWallet] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [walletSignedIn, setWalletSignedIn] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -161,14 +162,29 @@ export default function PlayerProfileProvider({
       };
       setProfile(nextProfile);
       syncNameCompletion(nextProfile);
-      setShowModal(false);
     } else {
       setProfile(null);
-      setShowModal(true);
+      clearCachedPlayerName();
     }
 
+    // Name is collected after wallet connect (not before).
+    setWalletSignedIn(
+      Boolean(getCachedSolanaAddress()) && hasCachedSolanaSignIn()
+    );
+    setShowModal(false);
     setIsReady(true);
   }, []);
+
+  const needsPlayerName = useCallback(() => {
+    return !hasPlayerName(profile) && !getCachedPlayerName()?.trim();
+  }, [profile]);
+
+  const promptNameAfterWallet = useCallback(() => {
+    if (!needsPlayerName()) return;
+    setError("");
+    setNameIntent("create");
+    setShowModal(true);
+  }, [needsPlayerName]);
 
   const refreshStreakStatus = useCallback(async () => {
     const wallet =
@@ -245,15 +261,17 @@ export default function PlayerProfileProvider({
     void refreshStreakStatus();
   }, [isReady, showOnboarding, showModal, walletAddress, refreshStreakStatus]);
 
-  // After Phantom connect/sign-in, always re-check daily shuffle.
+  // After Phantom connect/sign-in: ask for name (new users), then daily shuffle.
   useEffect(() => {
     const onConnected = () => {
+      setWalletSignedIn(true);
+      promptNameAfterWallet();
       void refreshStreakStatus();
     };
     window.addEventListener("arcadex-solana-connected", onConnected);
     return () =>
       window.removeEventListener("arcadex-solana-connected", onConnected);
-  }, [refreshStreakStatus]);
+  }, [promptNameAfterWallet, refreshStreakStatus]);
 
   const handleSubmit = useCallback(async (name: string) => {
     setSaving(true);
@@ -392,26 +410,47 @@ export default function PlayerProfileProvider({
 
   const onboardingVisible = showOnboarding === true;
   const onboardingResolved = showOnboarding !== null;
-  const nameModalVisible =
-    onboardingResolved && !onboardingVisible && showModal;
 
+  // New flow: onboarding → wallet connect → name (required after connect).
   useEffect(() => {
     if (!isReady) return;
     if (!onboardingResolved || onboardingVisible) return;
     if (showModal) return;
-    if (!isArcadexNativeShell()) return;
-    if (getCachedSolanaAddress() && hasCachedSolanaSignIn()) return;
-    if (hasSeenMwaConnectPromptThisSession()) return;
-    if (!hasPlayerName(profile) && !getCachedPlayerName()?.trim()) return;
 
-    setShowConnectWallet(true);
+    if (isArcadexNativeShell()) {
+      if (!walletSignedIn) {
+        if (!hasSeenMwaConnectPromptThisSession()) {
+          setShowConnectWallet(true);
+        }
+        return;
+      }
+      setShowConnectWallet(false);
+      if (needsPlayerName()) {
+        setNameIntent("create");
+        setShowModal(true);
+      }
+      return;
+    }
+
+    // Browser / non-native: keep a local name prompt after onboarding.
+    if (needsPlayerName()) {
+      setNameIntent("create");
+      setShowModal(true);
+    }
   }, [
     isReady,
     onboardingResolved,
     onboardingVisible,
     showModal,
-    profile,
+    walletSignedIn,
+    needsPlayerName,
   ]);
+
+  const nameModalVisible =
+    onboardingResolved &&
+    !onboardingVisible &&
+    showModal &&
+    (!isArcadexNativeShell() || walletSignedIn || nameIntent === "edit");
 
   const connectWalletVisible =
     onboardingResolved &&
@@ -479,7 +518,10 @@ export default function PlayerProfileProvider({
         onClose={handleConnectWalletClose}
         onConnected={(address) => {
           markMwaConnectPromptSeen();
+          setWalletSignedIn(true);
+          setShowConnectWallet(false);
           void updateWalletAddress(address);
+          promptNameAfterWallet();
           void refreshStreakStatus();
         }}
       />

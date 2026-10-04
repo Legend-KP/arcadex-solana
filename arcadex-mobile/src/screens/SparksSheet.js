@@ -1,6 +1,14 @@
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, spacing } from "../theme";
+import { colors } from "../theme";
 
 export default function SparksSheet({
   visible,
@@ -14,115 +22,432 @@ export default function SparksSheet({
   onClose,
 }) {
   const insets = useSafeAreaInsets();
-  const label = sparks?.hasInfinite
-    ? "Infinite Sparks active"
-    : `${sparks?.available ?? 0} of ${sparks?.max ?? 4} Sparks ready`;
+  const available = sparks?.available ?? 0;
+  const max = sparks?.max ?? 4;
+  const isFull = available >= max;
+  const hasInfinite = Boolean(sparks?.hasInfinite);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
-        <View style={styles.handle} />
-        <Text style={styles.title}>Sparks</Text>
-        <Text style={styles.body}>
-          Sparks power each game start. Refill or unlock Infinite Sparks with a
-          Solana USDC payment through Mobile Wallet Adapter.
-        </Text>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={styles.root}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <View
+          style={[
+            styles.panel,
+            {
+              marginBottom: Math.max(insets.bottom, 16),
+              marginTop: insets.top + 36,
+            },
+          ]}
+        >
+          <View style={styles.titleIcon} pointerEvents="none">
+            <Text style={styles.titleIconBolt}>⚡</Text>
+          </View>
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoValue}>{label}</Text>
-          <Text style={styles.infoMeta}>Mainnet USDC · treasury fee</Text>
-        </View>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {!connected ? (
-          <Pressable style={styles.primaryBtn} onPress={onConnect}>
-            <Text style={styles.primaryBtnText}>Connect wallet to buy</Text>
+          <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={8}>
+            <Text style={styles.closeBtnText}>×</Text>
           </Pressable>
-        ) : busy ? (
-          <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
-        ) : (
-          <>
-            <Pressable style={styles.primaryBtn} onPress={onRefill}>
-              <Text style={styles.primaryBtnText}>Refill Sparks · $0.05</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryAction} onPress={onInfinite}>
-              <Text style={styles.secondaryActionText}>
-                Infinite Sparks 24h · $0.10
-              </Text>
-            </Pressable>
-          </>
-        )}
 
-        <Pressable style={styles.secondaryBtn} onPress={onClose}>
-          <Text style={styles.secondaryBtnText}>Close</Text>
-        </Pressable>
+          <ScrollView
+            contentContainerStyle={styles.body}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <Text style={styles.title}>SPARKS</Text>
+            <Text style={styles.intro}>
+              Use Sparks to play any game. Once inside, play freely and infinitely!
+            </Text>
+
+            <View style={styles.status}>
+              <View style={styles.heroRing}>
+                <Text style={styles.heroBolt}>{hasInfinite ? "∞" : "⚡"}</Text>
+              </View>
+
+              {hasInfinite ? (
+                <>
+                  <Text style={styles.countInfinite}>Infinite Spark active</Text>
+                  <Text style={styles.infiniteHint}>
+                    Play any game freely — no Spark cost while this lasts.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.countValue}>
+                    {available} / {max}
+                  </Text>
+                  <Text style={styles.countCaption}>Sparks Available</Text>
+                  {isFull ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>All Sparks are ready! 🌌</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.infoBox}>
+                    <View style={styles.infoIcon}>
+                      <Text style={styles.infoIconText}>i</Text>
+                    </View>
+                    <Text style={styles.infoText}>
+                      1 Spark = 1 game entry. Sparks refill one at a time — each
+                      takes 3 hours, and the next starts only after the previous
+                      one is ready.
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            <Text style={styles.shopTitle}>✦  GET MORE SPARKS  ✦</Text>
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            {!connected ? (
+              <Pressable style={styles.connectBtn} onPress={onConnect}>
+                <Text style={styles.connectBtnText}>Connect wallet to buy</Text>
+              </Pressable>
+            ) : busy ? (
+              <ActivityIndicator color="#7c3aed" style={{ marginVertical: 16 }} />
+            ) : (
+              <>
+                <View style={styles.shopCard}>
+                  <View style={styles.shopMain}>
+                    <View style={[styles.shopIcon, styles.shopIconRefill]}>
+                      <Text style={styles.shopIconText}>⚡</Text>
+                    </View>
+                    <View style={styles.shopCopy}>
+                      <Text style={styles.shopName}>Spark Refill</Text>
+                      <Text style={styles.shopDesc}>
+                        Instantly refill your Spark bar to full.
+                      </Text>
+                      <View style={styles.tagGold}>
+                        <Text style={styles.tagGoldText}>Best for quick top-up</Text>
+                      </View>
+                    </View>
+                    <Pressable
+                      style={[styles.priceBtn, isFull && styles.priceBtnDisabled]}
+                      onPress={onRefill}
+                      disabled={isFull}
+                    >
+                      <Text style={styles.priceBtnText}>$0.05</Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View style={[styles.shopCard, styles.shopCardInfinite]}>
+                  <View style={styles.shopMain}>
+                    <View style={[styles.shopIcon, styles.shopIconInfinite]}>
+                      <Text style={styles.shopIconText}>∞</Text>
+                    </View>
+                    <View style={styles.shopCopy}>
+                      <Text style={styles.shopName}>Infinite Spark (24h)</Text>
+                      <Text style={styles.shopDesc}>
+                        Unlimited game access for 24 hours.
+                      </Text>
+                      <View style={styles.tagPurple}>
+                        <Text style={styles.tagPurpleText}>Play without limits</Text>
+                      </View>
+                    </View>
+                    <Pressable style={[styles.priceBtn, styles.priceBtnPurple]} onPress={onInfinite}>
+                      <Text style={styles.priceBtnText}>$0.10</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.4)" },
-  sheet: {
-    backgroundColor: colors.bgElevated,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderColor: colors.border,
+  root: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 16,
   },
-  handle: {
-    alignSelf: "center",
-    width: 42,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#d1d5db",
-    marginBottom: spacing.md,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(7, 10, 32, 0.66)",
   },
-  title: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "900",
-    marginBottom: 8,
+  panel: {
+    backgroundColor: "#fffaff",
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: "rgba(167, 139, 250, 0.35)",
+    maxHeight: "88%",
+    overflow: "visible",
+    paddingTop: 44,
+    shadowColor: "#070a20",
+    shadowOpacity: 0.35,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 12,
+  },
+  titleIcon: {
+    position: "absolute",
+    top: -36,
+    left: "50%",
+    width: 84,
+    height: 84,
+    marginLeft: -42,
+    borderRadius: 42,
+    backgroundColor: "#5b21b6",
+    borderWidth: 4,
+    borderColor: "#ddd6fe",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 3,
+  },
+  titleIconBolt: {
+    fontSize: 36,
+  },
+  closeBtn: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#7c3aed",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 4,
+  },
+  closeBtnText: {
+    color: "#fff",
+    fontSize: 24,
+    lineHeight: 26,
+    fontWeight: "600",
   },
   body: {
-    color: colors.textMuted,
+    paddingHorizontal: 18,
+    paddingBottom: 20,
+  },
+  title: {
+    textAlign: "center",
+    color: "#7c3aed",
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  intro: {
+    textAlign: "center",
+    color: "#52525b",
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: spacing.md,
+    marginBottom: 16,
+  },
+  status: {
+    backgroundColor: "#1a0f45",
+    borderRadius: 22,
+    paddingTop: 22,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  heroRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 5,
+    borderColor: "#fbbf24",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  heroBolt: {
+    fontSize: 32,
+    color: "#fbbf24",
+  },
+  countValue: {
+    color: "#fbbf24",
+    fontSize: 38,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  countCaption: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  countInfinite: {
+    color: "#fbbf24",
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  infiniteHint: {
+    color: "#ddd6fe",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  badge: {
+    backgroundColor: "#22c55e",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
   },
   infoBox: {
-    backgroundColor: colors.sparkBg,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "rgba(8, 6, 28, 0.55)",
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.sparkBorder,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    padding: 12,
   },
-  infoValue: { color: colors.spark, fontSize: 16, fontWeight: "900" },
-  infoMeta: { color: colors.textDim, marginTop: 4, fontSize: 12 },
-  error: { color: colors.danger, marginBottom: spacing.md, fontSize: 13 },
-  primaryBtn: {
-    backgroundColor: colors.accent,
+  infoIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#3b82f6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  infoIconText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+    fontStyle: "italic",
+  },
+  infoText: {
+    flex: 1,
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  shopTitle: {
+    textAlign: "center",
+    color: "#7c3aed",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    marginBottom: 14,
+  },
+  error: {
+    color: colors.danger,
+    fontSize: 13,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  connectBtn: {
+    backgroundColor: "#7c3aed",
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",
-    marginBottom: 10,
   },
-  primaryBtnText: { color: "#422006", fontWeight: "900", fontSize: 15 },
-  secondaryAction: {
+  connectBtnText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  shopCard: {
+    borderWidth: 1.5,
+    borderColor: "rgba(251, 191, 36, 0.55)",
+    borderRadius: 18,
     backgroundColor: "#fff",
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginBottom: 10,
+    padding: 14,
+    marginBottom: 12,
   },
-  secondaryActionText: { color: colors.text, fontWeight: "800", fontSize: 15 },
-  secondaryBtn: { borderRadius: 14, paddingVertical: 12, alignItems: "center" },
-  secondaryBtnText: { color: colors.textMuted, fontWeight: "700" },
+  shopCardInfinite: {
+    borderColor: "rgba(168, 85, 247, 0.45)",
+  },
+  shopMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  shopIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shopIconRefill: {
+    backgroundColor: "#facc15",
+  },
+  shopIconInfinite: {
+    backgroundColor: "#a855f7",
+  },
+  shopIconText: {
+    fontSize: 26,
+    color: "#fff",
+    fontWeight: "800",
+  },
+  shopCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  shopName: {
+    color: "#0f172a",
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  shopDesc: {
+    color: "#71717a",
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+  tagGold: {
+    alignSelf: "flex-start",
+    backgroundColor: "#fef3c7",
+    borderWidth: 1,
+    borderColor: "rgba(251, 191, 36, 0.5)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  tagGoldText: {
+    color: "#b45309",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  tagPurple: {
+    alignSelf: "flex-start",
+    backgroundColor: "#ede9fe",
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.35)",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  tagPurpleText: {
+    color: "#6d28d9",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  priceBtn: {
+    backgroundColor: "#f59e0b",
+    borderRadius: 12,
+    minWidth: 72,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: "center",
+  },
+  priceBtnPurple: {
+    backgroundColor: "#7c3aed",
+  },
+  priceBtnDisabled: {
+    opacity: 0.55,
+  },
+  priceBtnText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
+  },
 });

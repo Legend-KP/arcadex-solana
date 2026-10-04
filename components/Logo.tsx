@@ -1,7 +1,7 @@
 const LOGO_BY_VARIANT = {
-  header: "/logo.png",
-  loading: "/logo.png",
-  login: "/logo.png",
+  header: "/arcadeX.webp",
+  loading: "/arcadeX.webp",
+  login: "/arcadeX.webp",
 } as const;
 
 interface LogoProps {

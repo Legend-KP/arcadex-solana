@@ -91,7 +91,10 @@ export function resolveActivityEntryXp(
   };
 }
 
-/** Monday 00:00 UTC of the ISO week containing `now`. */
+/**
+ * Weekly XP board window: Monday 00:00 UTC → next Monday 00:00 UTC.
+ * Matches ISO week boundaries used for activity_leaderboard_entries.week_id.
+ */
 export function getIsoWeekWindow(now = Date.now()): ActivityWeekWindow {
   const d = new Date(now);
   const utc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());

@@ -12,6 +12,8 @@ export interface ActivityLeaderboardResponse {
   resetsIn: string | null;
   endsAtMs: number;
   entries: ActivityLeaderboardEntry[];
+  /** Players with at least one play this week. */
+  totalParticipants: number;
   me: {
     rank: number | null;
     score: number;
@@ -48,6 +50,10 @@ export async function getActivityLeaderboard(opts?: {
     resetsIn: data.resetsIn ?? null,
     endsAtMs: data.endsAtMs ?? data.endsAt ?? 0,
     entries: data.entries ?? [],
+    totalParticipants: Math.max(
+      Number(data.totalParticipants ?? 0) || 0,
+      data.entries?.length ?? 0
+    ),
     me: data.me ?? null,
   };
 }

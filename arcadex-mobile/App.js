@@ -14,6 +14,7 @@ import {
   bootstrapPlayer,
   confirmSolanaPayment,
   createWalletSession,
+  savePlayerName,
 } from "./src/api";
 import { clearSession, loadSession, saveSession } from "./src/session";
 import {
@@ -24,6 +25,7 @@ import {
 import HomeScreen from "./src/screens/HomeScreen";
 import WalletSheet from "./src/screens/WalletSheet";
 import SparksSheet from "./src/screens/SparksSheet";
+import PlayerNameSheet from "./src/screens/PlayerNameSheet";
 import GameScreen from "./src/screens/GameScreen";
 import { pushRecentPlayId } from "./src/game-utils";
 import { colors } from "./src/theme";
@@ -76,6 +78,9 @@ function ArcadeShell() {
   const [payBusy, setPayBusy] = useState(false);
   const [walletError, setWalletError] = useState("");
   const [sparksError, setSparksError] = useState("");
+  const [nameOpen, setNameOpen] = useState(false);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameError, setNameError] = useState("");
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
@@ -88,6 +93,10 @@ function ArcadeShell() {
       if (cancelled) return;
       setSession(savedSession);
       setSparks(sparkSnap);
+      // Returning signed-in users without a name must finish profile setup.
+      if (savedSession?.address && !savedSession?.playerName?.trim()) {
+        setNameOpen(true);
+      }
       setBooted(true);
     })().catch(() => {
       if (!cancelled) {
@@ -126,15 +135,22 @@ function ArcadeShell() {
         console.warn("wallet_session_failed", err?.message || err);
       }
 
+      const existingName = session?.playerName?.trim() || null;
       const next = {
         token,
         address: signedIn.address,
         label: signedIn.label ?? null,
+        playerName: existingName,
         message: signedIn.message,
         signatureBase64: signedIn.signatureBase64,
       };
       await saveSession(next);
       setSession(next);
+      setWalletOpen(false);
+      if (!existingName) {
+        setNameError("");
+        setNameOpen(true);
+      }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       setWalletError(
@@ -144,7 +160,7 @@ function ArcadeShell() {
     } finally {
       setWalletBusy(false);
     }
-  }, []);
+  }, [session?.playerName]);
 
   const disconnectWallet = useCallback(async () => {
     setWalletBusy(true);
@@ -160,11 +176,44 @@ function ArcadeShell() {
       token: null,
       address: null,
       label: null,
+      playerName: null,
       message: null,
       signatureBase64: null,
     });
+    setNameOpen(false);
     setWalletBusy(false);
   }, []);
+
+  const submitPlayerName = useCallback(
+    async (name) => {
+      if (!session?.address) return;
+      setNameBusy(true);
+      setNameError("");
+      try {
+        await savePlayerName(session.address, name, session.token).catch(
+          () => null
+        );
+        const next = {
+          ...session,
+          playerName: name,
+          label: name,
+        };
+        await saveSession(next);
+        setSession(next);
+        setNameOpen(false);
+        await Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success
+        );
+      } catch (err) {
+        setNameError(
+          err instanceof Error ? err.message : "Could not save your name."
+        );
+      } finally {
+        setNameBusy(false);
+      }
+    },
+    [session]
+  );
 
   const buySpark = useCallback(
     async (purpose) => {
@@ -276,6 +325,15 @@ function ArcadeShell() {
         onRefill={() => buySpark("spark_refill")}
         onInfinite={() => buySpark("infinite_spark")}
         onClose={() => setSparksOpen(false)}
+      />
+
+      <PlayerNameSheet
+        visible={nameOpen}
+        walletAddress={session?.address}
+        busy={nameBusy}
+        error={nameError}
+        defaultName={session?.playerName || ""}
+        onSubmit={submitPlayerName}
       />
     </View>
   );

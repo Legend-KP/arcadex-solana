@@ -24,7 +24,7 @@ import { Game, gameHasContestLive, gameIsLive } from "@/types";
 const VIEW_TITLE: Record<Exclude<AppView, "home">, string> = {
   games: "Games",
   contests: "Contests",
-  leaderboard: "Global Leaderboard",
+  leaderboard: "Weekly XP Board",
   achievements: "Achievements",
 };
 

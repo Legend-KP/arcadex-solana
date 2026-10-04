@@ -108,6 +108,9 @@ export default function SparkBatteryBar() {
   }, [open]);
 
   const isFull = sparks.available >= sparks.max;
+  const regeneratingSlot = sparks.slots.find(
+    (slot) => slot.status === "regenerating"
+  );
 
   async function handlePurchaseInfiniteSpark() {
     setPurchaseError("");
@@ -172,189 +175,166 @@ export default function SparkBatteryBar() {
         </button>
 
         <span className="spark-panel__title-icon" aria-hidden>
-          ⚡
+          <span className="spark-panel__title-icon-bolt">⚡</span>
         </span>
 
         <div className="spark-panel__body">
-        <header className="spark-panel__header">
-          <div className="spark-panel__title-row">
+          <header className="spark-panel__header">
             <h2 id="spark-panel-title" className="spark-panel__title">
-              Sparks
+              SPARKS
             </h2>
-          </div>
-          <p className="spark-panel__intro">
-            Use Sparks to play any game. Once inside, play freely and infinitely!
-          </p>
-        </header>
+            <p className="spark-panel__intro">
+              Use Sparks to play any game. Once inside, play freely and
+              infinitely!
+            </p>
+          </header>
 
-        {sparks.hasInfinite ? (
-          <section className="spark-panel__status">
-            <div className="spark-panel__count-row">
-              <span className="spark-panel__count-icon" aria-hidden>
-                ∞
-              </span>
+          {sparks.hasInfinite ? (
+            <section className="spark-panel__status">
+              <div className="spark-panel__hero-ring" aria-hidden>
+                <span className="spark-panel__hero-bolt">∞</span>
+              </div>
               <p className="spark-panel__count-text spark-panel__count-text--infinite">
                 Infinite Spark active
               </p>
-            </div>
-            <p className="spark-panel__infinite-hint">
-              Play any game freely — no Spark cost while this lasts.
-            </p>
-          </section>
-        ) : (
-          <section className="spark-panel__status">
-            <p className="spark-panel__status-label">Your Sparks</p>
-            <div className="spark-panel__count-row">
-              <span className="spark-panel__count-icon" aria-hidden>
-                ⚡
-              </span>
-              <p className="spark-panel__count-text">
-                <strong>{sparks.available}</strong>
-                <span className="spark-panel__count-sep">/</span>
-                {sparks.max} Sparks Available
+              <p className="spark-panel__infinite-hint">
+                Play any game freely — no Spark cost while this lasts.
               </p>
-            </div>
+            </section>
+          ) : (
+            <section className="spark-panel__status">
+              <div className="spark-panel__hero-ring" aria-hidden>
+                <span className="spark-panel__hero-bolt">⚡</span>
+              </div>
+              <p className="spark-panel__count-text">
+                <strong>
+                  {sparks.available} / {sparks.max}
+                </strong>
+              </p>
+              <p className="spark-panel__count-caption">Sparks Available</p>
 
-            <div
-              className="spark-panel__segments"
-              style={{
-                gridTemplateColumns: `repeat(${Math.max(1, sparks.max)}, 1fr)`,
-              }}
-            >
-              {sparks.slots.map((slot) => (
-                <div key={slot.index} className="spark-panel__segment-col">
-                  <div className="spark-panel__segment">
-                    <span
-                      className="spark-panel__segment-fill"
-                      style={{ width: `${slot.fillPercent}%` }}
-                    />
-                  </div>
-                  {slot.status === "regenerating" ? (
-                    <span className="spark-panel__segment-time">
-                      {formatSparkCountdown(slot.timeRemainingMs)}
-                    </span>
-                  ) : slot.status === "queued" ? (
-                    <span className="spark-panel__segment-time spark-panel__segment-time--queued">
-                      Waiting
-                    </span>
-                  ) : (
-                    <span className="spark-panel__segment-time spark-panel__segment-time--ready">
-                      Ready
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
+              {isFull ? (
+                <span className="spark-panel__badge">
+                  All Sparks are ready! 🌌
+                </span>
+              ) : regeneratingSlot ? (
+                <span className="spark-panel__badge spark-panel__badge--wait">
+                  Next Spark in{" "}
+                  {formatSparkCountdown(regeneratingSlot.timeRemainingMs)}
+                </span>
+              ) : null}
 
-            {isFull && (
-              <span className="spark-panel__badge">All Sparks are full! ✦</span>
-            )}
-
-            <p className="spark-panel__info">
-              <span aria-hidden>ℹ</span> 1 Spark = 1 game entry. Sparks refill
-              one at a time — each takes 3 hours, and the next starts only after
-              the previous one is ready.
-            </p>
-          </section>
-        )}
-
-        <section className="spark-panel__shop">
-          <h3 className="spark-panel__shop-title">
-            <span aria-hidden>✦</span>
-            <span>Get More Sparks</span>
-            <span aria-hidden>✦</span>
-          </h3>
-
-          {!walletReady && (
-            <p className="spark-panel__shop-note" role="status">
-              {shopNote}
-            </p>
+              <p className="spark-panel__info">
+                <span className="spark-panel__info-icon" aria-hidden>
+                  i
+                </span>
+                <span>
+                  1 Spark = 1 game entry. Sparks refill one at a time — each
+                  takes 3 hours, and the next starts only after the previous one
+                  is ready.
+                </span>
+              </p>
+            </section>
           )}
 
-          <div className="spark-shop-card">
-            <div className="spark-shop-card__main">
-              <span className="spark-shop-card__icon spark-shop-card__icon--refill" aria-hidden>
-                ⚡
-              </span>
-              <div className="spark-shop-card__copy">
-                <p className="spark-shop-card__name">Spark Refill</p>
-                <p className="spark-shop-card__desc">
-                  Instantly refill your Spark bar to full.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="spark-shop-card__price"
-                disabled={
-                  !walletReady ||
-                  refilling ||
-                  loading ||
-                  sparks.available >= sparks.max
-                }
-                onClick={() => {
-                  playTouchSfx();
-                  if (!walletReady) {
-                    setRefillError("Wallet coming soon");
-                    return;
-                  }
-                  void handlePurchaseSparkRefill();
-                }}
-              >
-                {!walletReady ? "Soon" : refilling ? "…" : "$0.05"}
-              </button>
-            </div>
-            <span className="spark-shop-card__tag spark-shop-card__tag--gold">
-              Best for quick top-up
-            </span>
-            {refillError && (
-              <p className="spark-panel__purchase-error" role="alert">
-                {refillError}
+          <section className="spark-panel__shop">
+            <h3 className="spark-panel__shop-title">
+              <span aria-hidden>✦</span>
+              <span>GET MORE SPARKS</span>
+              <span aria-hidden>✦</span>
+            </h3>
+
+            {!walletReady && (
+              <p className="spark-panel__shop-note" role="status">
+                {shopNote}
               </p>
             )}
-          </div>
 
-          <div className="spark-shop-card spark-shop-card--infinite">
-            <div className="spark-shop-card__main">
-              <span className="spark-shop-card__icon spark-shop-card__icon--infinite" aria-hidden>
-                ∞
-              </span>
-              <div className="spark-shop-card__copy">
-                <p className="spark-shop-card__name">Infinite Spark (24h)</p>
-                <p className="spark-shop-card__desc">
-                  Unlimited game access for 24 hours.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="spark-shop-card__price"
-                disabled={!walletReady || purchasing || loading}
-                onClick={() => {
-                  playTouchSfx();
-                  if (!walletReady) {
-                    setPurchaseError("Wallet coming soon");
-                    return;
+            <div className="spark-shop-card">
+              <div className="spark-shop-card__main">
+                <span
+                  className="spark-shop-card__icon spark-shop-card__icon--refill"
+                  aria-hidden
+                >
+                  ⚡
+                </span>
+                <div className="spark-shop-card__copy">
+                  <p className="spark-shop-card__name">Spark Refill</p>
+                  <p className="spark-shop-card__desc">
+                    Instantly refill your Spark bar to full.
+                  </p>
+                  <span className="spark-shop-card__tag spark-shop-card__tag--gold">
+                    Best for quick top-up
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="spark-shop-card__price"
+                  disabled={
+                    !walletReady ||
+                    refilling ||
+                    loading ||
+                    sparks.available >= sparks.max
                   }
-                  void handlePurchaseInfiniteSpark();
-                }}
-              >
-                {!walletReady ? "Soon" : purchasing ? "…" : "$0.10"}
-              </button>
+                  onClick={() => {
+                    playTouchSfx();
+                    if (!walletReady) {
+                      setRefillError("Wallet coming soon");
+                      return;
+                    }
+                    void handlePurchaseSparkRefill();
+                  }}
+                >
+                  {!walletReady ? "Soon" : refilling ? "…" : "$0.05"}
+                </button>
+              </div>
+              {refillError && (
+                <p className="spark-panel__purchase-error" role="alert">
+                  {refillError}
+                </p>
+              )}
             </div>
-            <span className="spark-shop-card__tag spark-shop-card__tag--purple">
-              Play without limits
-            </span>
-            {purchaseError && (
-              <p className="spark-panel__purchase-error" role="alert">
-                {purchaseError}
-              </p>
-            )}
-          </div>
 
-          <p className="spark-panel__shop-note">
-            <span aria-hidden>🛡</span> Infinite Spark removes the entry gate
-            only.
-          </p>
-        </section>
+            <div className="spark-shop-card spark-shop-card--infinite">
+              <div className="spark-shop-card__main">
+                <span
+                  className="spark-shop-card__icon spark-shop-card__icon--infinite"
+                  aria-hidden
+                >
+                  ∞
+                </span>
+                <div className="spark-shop-card__copy">
+                  <p className="spark-shop-card__name">Infinite Spark (24h)</p>
+                  <p className="spark-shop-card__desc">
+                    Unlimited game access for 24 hours.
+                  </p>
+                  <span className="spark-shop-card__tag spark-shop-card__tag--purple">
+                    Play without limits
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="spark-shop-card__price"
+                  disabled={!walletReady || purchasing || loading}
+                  onClick={() => {
+                    playTouchSfx();
+                    if (!walletReady) {
+                      setPurchaseError("Wallet coming soon");
+                      return;
+                    }
+                    void handlePurchaseInfiniteSpark();
+                  }}
+                >
+                  {!walletReady ? "Soon" : purchasing ? "…" : "$0.10"}
+                </button>
+              </div>
+              {purchaseError && (
+                <p className="spark-panel__purchase-error" role="alert">
+                  {purchaseError}
+                </p>
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </div>

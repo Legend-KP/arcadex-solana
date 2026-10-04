@@ -3,8 +3,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Logo from "@/components/Logo";
-import { useSolanaMwaConnect } from "@/lib/use-solana-mwa-connect";
-import { truncateSolanaAddress } from "@/lib/solana-address";
+import {
+  getCachedSolanaAddress,
+  truncateSolanaAddress,
+} from "@/lib/solana-address";
 import { playTouchSfx } from "@/lib/sfx";
 
 interface PlayerNameModalProps {
@@ -27,14 +29,7 @@ export default function PlayerNameModal({
   onClose,
 }: PlayerNameModalProps) {
   const [name, setName] = useState(defaultName);
-  const {
-    native,
-    address,
-    busy: connecting,
-    error: connectError,
-    connect,
-    signedIn,
-  } = useSolanaMwaConnect();
+  const wallet = getCachedSolanaAddress();
 
   useEffect(() => {
     if (!open) return;
@@ -49,23 +44,12 @@ export default function PlayerNameModal({
   if (!open) return null;
 
   const isValid = name.trim().length >= 1;
-  const busy = saving || connecting;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!isValid || busy) return;
-    onSubmit(name.trim());
-  }
-
-  async function handleConnectThenContinue() {
+    if (!isValid || saving) return;
     playTouchSfx();
-    if (!isValid || busy) return;
-    try {
-      if (!address || !signedIn) await connect();
-      onSubmit(name.trim());
-    } catch {
-      // Stay on modal; connectError shown.
-    }
+    onSubmit(name.trim());
   }
 
   const modal = (
@@ -86,10 +70,16 @@ export default function PlayerNameModal({
         <p className="player-modal-hint">
           {intent === "edit"
             ? "This updates the name on your signed-in profile."
-            : native
-            ? "Pick a name, then connect & sign in with your Solana wallet (free message — no SOL spent). Or continue as a guest."
-            : "This name is saved on this device. Pick something fun — you can keep playing without a wallet."}
+            : wallet
+              ? "Your wallet is connected. Pick a display name to finish setting up your profile."
+              : "This name is saved on this device. Pick something fun — you can keep playing without a wallet."}
         </p>
+
+        {intent === "create" && wallet ? (
+          <p className="connect-wallet-modal__status">
+            Connected · {truncateSolanaAddress(wallet)}
+          </p>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="player-modal-form">
           <label className="form-label" htmlFor="player-name">
@@ -105,62 +95,29 @@ export default function PlayerNameModal({
             maxLength={20}
             autoFocus
             autoComplete="nickname"
-            disabled={busy}
+            disabled={saving}
           />
           {error && <p className="error-msg">{error}</p>}
-          {connectError && <p className="error-msg">{connectError}</p>}
 
-          {intent === "edit" || !native ? (
-            <>
-              <button
-                type="submit"
-                className="player-modal-submit"
-                disabled={busy || !isValid}
-              >
-                {saving ? "Saving..." : intent === "edit" ? "Save" : "Continue"}
-              </button>
-              {intent === "edit" && onClose && (
-                <button
-                  type="button"
-                  className="connect-wallet-modal__skip"
-                  onClick={onClose}
-                  disabled={busy}
-                >
-                  Cancel
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              {address ? (
-                <p className="connect-wallet-modal__status">
-                  {signedIn ? "Signed in" : "Connected"} ·{" "}
-                  {truncateSolanaAddress(address)}
-                </p>
-              ) : null}
-
-              <button
-                type="button"
-                className="player-modal-submit"
-                disabled={busy || !isValid}
-                onClick={() => void handleConnectThenContinue()}
-              >
-                {connecting
-                  ? "Waiting for wallet…"
-                  : address && signedIn
-                    ? saving
-                      ? "Saving..."
-                      : "Continue"
-                    : "Connect, sign in & continue"}
-              </button>
-              <button
-                type="submit"
-                className="connect-wallet-modal__skip"
-                disabled={busy || !isValid}
-              >
-                {saving ? "Saving..." : "Continue without wallet"}
-              </button>
-            </>
+          <button
+            type="submit"
+            className="player-modal-submit"
+            disabled={saving || !isValid}
+          >
+            {saving ? "Saving..." : intent === "edit" ? "Save" : "Continue"}
+          </button>
+          {intent === "edit" && onClose && (
+            <button
+              type="button"
+              className="connect-wallet-modal__skip"
+              onClick={() => {
+                playTouchSfx();
+                onClose();
+              }}
+              disabled={saving}
+            >
+              Cancel
+            </button>
           )}
         </form>
       </div>

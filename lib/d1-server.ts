@@ -1520,6 +1520,52 @@ function activityLeaderboardStatement(
     );
 }
 
+/** Lifetime XP — stored in D1 for later use; not shown on the weekly board yet. */
+function allTimeXpStatement(
+  db: D1DatabaseLike,
+  wallet: string,
+  delta: {
+    xp: number;
+    plays: number;
+    activeDays: number;
+    txs: number;
+    spendUnits: number;
+  },
+  updatedAt: number
+): D1PreparedStatement | null {
+  if (
+    delta.xp <= 0 &&
+    delta.plays <= 0 &&
+    delta.activeDays <= 0 &&
+    delta.txs <= 0 &&
+    delta.spendUnits <= 0
+  ) {
+    return null;
+  }
+  return db
+    .prepare(
+      `INSERT INTO user_xp_all_time (
+         wallet, xp, plays, active_days, txs, spend_units, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(wallet) DO UPDATE SET
+         xp = user_xp_all_time.xp + excluded.xp,
+         plays = user_xp_all_time.plays + excluded.plays,
+         active_days = user_xp_all_time.active_days + excluded.active_days,
+         txs = user_xp_all_time.txs + excluded.txs,
+         spend_units = user_xp_all_time.spend_units + excluded.spend_units,
+         updated_at = excluded.updated_at`
+    )
+    .bind(
+      wallet,
+      Math.max(0, delta.xp),
+      Math.max(0, delta.plays),
+      Math.max(0, delta.activeDays),
+      Math.max(0, delta.txs),
+      Math.max(0, delta.spendUnits),
+      updatedAt
+    );
+}
+
 /**
  * Best-effort activity bump. Never throws to callers — log and swallow.
  * `spendUnits` only applies when kind is "spend".
@@ -1609,6 +1655,21 @@ export async function recordActivityEvent(
       return;
     }
 
+    const prevXp = computeActivityXp(existing);
+    const nextXp = computeActivityXp(next);
+    const allTimeStmt = allTimeXpStatement(
+      db,
+      wallet,
+      {
+        xp: Math.max(0, nextXp - prevXp),
+        plays: Math.max(0, next.sparksSpent - existing.sparksSpent),
+        activeDays: Math.max(0, next.activeDays - existing.activeDays),
+        txs: Math.max(0, next.txs - existing.txs),
+        spendUnits: Math.max(0, next.spendUnits - existing.spendUnits),
+      },
+      now
+    );
+
     const writes: D1PreparedStatement[] = [
       activityCountersStatement(db, wallet, weekId, next),
     ];
@@ -1623,6 +1684,8 @@ export async function recordActivityEvent(
         )
       );
     }
+
+    if (allTimeStmt) writes.push(allTimeStmt);
 
     await db.batch(writes);
   } catch (err) {
@@ -1681,4 +1744,20 @@ export async function fetchUserActivityFromServer(
     .bind(wallet, weekId)
     .first<ActivityRow>();
   return activityRowToCounters(row);
+}
+
+/** Count players with at least one play this week (for XP board participants bar). */
+export async function countActivityParticipants(
+  weekId: string
+): Promise<number> {
+  const db = await requireD1();
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n
+       FROM activity_leaderboard_entries
+       WHERE week_id = ? AND sparks_spent > 0`
+    )
+    .bind(weekId)
+    .first<{ n: number }>();
+  return Math.max(0, Number(row?.n ?? 0));
 }

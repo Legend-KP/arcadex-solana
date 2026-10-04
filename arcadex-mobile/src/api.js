@@ -34,11 +34,11 @@ export async function fetchActivityLeaderboard() {
 }
 
 export function logoUrl() {
-  return `${apiBase()}/logo.png`;
+  return `${apiBase()}/arcadeX.webp`;
 }
 
 export function logoFallbackUrl() {
-  return `${apiBase()}/thumbnails/arcadeX.webp`;
+  return `${apiBase()}/arcadeX.webp`;
 }
 
 export async function createWalletSession({
@@ -65,6 +65,21 @@ export async function bootstrapPlayer(walletAddress, token) {
     body: JSON.stringify({ walletAddress }),
     cache: "no-store",
   });
+  return parseJson(res);
+}
+
+export async function savePlayerName(walletAddress, name, token) {
+  const headers = { "content-type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(
+    `${apiBase()}/api/users/${encodeURIComponent(walletAddress)}`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ name, walletAddress }),
+      cache: "no-store",
+    }
+  );
   return parseJson(res);
 }
 

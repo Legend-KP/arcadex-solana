@@ -10,6 +10,7 @@ import {
   rateLimitResponse,
 } from "@/lib/rate-limit";
 import {
+  countActivityParticipants,
   fetchActivityLeaderboardFromServer,
   fetchUserActivityFromServer,
   findActivityRank,
@@ -34,10 +35,13 @@ export async function GET(request: Request) {
     const walletRaw = searchParams.get("wallet")?.trim() ?? "";
     const week = resolveActivityWeekId(weekParam);
 
-    const entries = await fetchActivityLeaderboardFromServer(
-      week.weekId,
-      ACTIVITY_LEADERBOARD_MAX_ENTRIES
-    );
+    const [entries, totalParticipants] = await Promise.all([
+      fetchActivityLeaderboardFromServer(
+        week.weekId,
+        ACTIVITY_LEADERBOARD_MAX_ENTRIES
+      ),
+      countActivityParticipants(week.weekId).catch(() => 0),
+    ]);
 
     let me: {
       rank: number | null;
@@ -68,7 +72,9 @@ export async function GET(request: Request) {
       resetsIn: week.isCurrent ? formatActivityCountdown(remainingMs) : null,
       endsAtMs: week.endsAt,
       entries,
+      totalParticipants: Math.max(totalParticipants, entries.length),
       me,
+      // all-time XP is persisted in D1 (user_xp_all_time) but not returned yet
     });
   } catch (err) {
     const message =

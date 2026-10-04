@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -212,39 +213,136 @@ function WinnersBar({ entries }) {
   );
 }
 
+const DRAWER_FOOTER_LINKS = [
+  {
+    label: "Privacy Policy",
+    url: "https://privacy-policy-one-ashy.vercel.app/privacy-policy",
+  },
+  {
+    label: "Terms & Conditions",
+    url: "https://privacy-policy-one-ashy.vercel.app/terms-and-conditions",
+  },
+  {
+    label: "FAQ",
+    url: "https://docs.google.com/document/d/1zYtLlN3MrPH2nv0ant3JmMuwIjsgLT066mQxB0LZKeA/edit?usp=sharing",
+  },
+  {
+    label: "Support",
+    url: "https://t.me/+70wfO-Phan5jYjJl",
+  },
+];
+
+const DRAWER_NAV = [
+  { id: "home", label: "Home" },
+  { id: "games", label: "Games" },
+  { id: "contests", label: "Contests" },
+  { id: "leaderboard", label: "Weekly XP Board" },
+  { id: "sparks", label: "Sparks" },
+  { id: "achievements", label: "Achievements" },
+];
+
 function MenuDrawer({ visible, session, onClose, onWallet, onSparks }) {
   const insets = useSafeAreaInsets();
+  const [logoSrc, setLogoSrc] = useState(logoUrl());
+  const displayName =
+    session?.playerName?.trim() || session?.label?.trim() || "Player";
+  const initial = (displayName.charAt(0) || "P").toUpperCase();
+  const address = session?.address || "";
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.drawerBackdrop} onPress={onClose} />
-      <View style={[styles.drawer, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.drawerTitle}>ArcadeX</Text>
-        <Text style={styles.drawerSub}>Solana Mobile</Text>
-        <Pressable
-          style={styles.drawerItem}
-          onPress={() => {
-            onClose();
-            onWallet();
-          }}
+      <View style={styles.drawerRoot}>
+        <Pressable style={styles.drawerBackdrop} onPress={onClose} />
+        <View
+          style={[
+            styles.drawer,
+            {
+              paddingTop: insets.top + 16,
+              paddingBottom: insets.bottom + 16,
+            },
+          ]}
         >
-          <Text style={styles.drawerItemText}>
-            {session?.address
-              ? `Wallet · ${truncateAddress(session.address)}`
-              : "Connect wallet"}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={styles.drawerItem}
-          onPress={() => {
-            onClose();
-            onSparks();
-          }}
-        >
-          <Text style={styles.drawerItemText}>Sparks shop</Text>
-        </Pressable>
-        <Pressable style={styles.drawerItem} onPress={onClose}>
-          <Text style={styles.drawerItemText}>Close</Text>
-        </Pressable>
+          <Image
+            source={{ uri: logoSrc }}
+            style={styles.drawerLogo}
+            resizeMode="contain"
+            onError={() => setLogoSrc(logoFallbackUrl())}
+          />
+
+          <Pressable
+            style={styles.drawerProfile}
+            onPress={() => {
+              onClose();
+              onWallet();
+            }}
+          >
+            <View style={styles.drawerAvatar}>
+              <Text style={styles.drawerAvatarText}>{initial}</Text>
+            </View>
+            <View style={styles.drawerWho}>
+              <View style={styles.drawerNameRow}>
+                <Text style={styles.drawerName} numberOfLines={1}>
+                  {displayName}
+                </Text>
+                <View style={styles.drawerEditPill}>
+                  <Text style={styles.drawerEditText}>Edit</Text>
+                </View>
+              </View>
+              <Text style={styles.drawerWallet} numberOfLines={1}>
+                {address ? truncateAddress(address, 6, 4) : "Connect wallet"}
+              </Text>
+            </View>
+          </Pressable>
+
+          <View style={styles.drawerNav}>
+            {DRAWER_NAV.map((item) => {
+              const active = item.id === "home";
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[styles.drawerItem, active && styles.drawerItemActive]}
+                  onPress={() => {
+                    if (item.id === "sparks") {
+                      onClose();
+                      onSparks();
+                      return;
+                    }
+                    if (item.id === "home") {
+                      onClose();
+                      return;
+                    }
+                    onClose();
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.drawerItemText,
+                      active && styles.drawerItemTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.drawerFooter}>
+            {DRAWER_FOOTER_LINKS.map((link) => (
+              <Pressable
+                key={link.label}
+                onPress={() => {
+                  Linking.openURL(link.url).catch(() => {});
+                }}
+              >
+                <Text style={styles.drawerFooterLink}>{link.label}</Text>
+              </Pressable>
+            ))}
+            <Pressable onPress={onClose}>
+              <Text style={styles.drawerFooterLink}>Tutorial</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </Modal>
   );
@@ -609,7 +707,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   menuBar: { width: 16, height: 2, borderRadius: 1, backgroundColor: "#0f172a" },
-  logo: { width: 128, height: 40 },
+  logo: { width: 44, height: 44, borderRadius: 12 },
   xpChip: {
     backgroundColor: "#fef3c7",
     borderColor: "rgba(245,158,11,0.35)",
@@ -817,30 +915,78 @@ const styles = StyleSheet.create({
   },
   errorText: { color: "#991b1b", fontSize: 13 },
   errorRetry: { color: "#b91c1c", fontSize: 12, marginTop: 4, fontWeight: "700" },
+  drawerRoot: { flex: 1 },
   drawerBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15,23,42,0.35)",
+    backgroundColor: "rgba(15,23,42,0.45)",
   },
   drawer: {
     position: "absolute",
     left: 0,
     top: 0,
     bottom: 0,
-    width: "78%",
-    maxWidth: 320,
+    width: "82%",
+    maxWidth: 300,
     backgroundColor: "#fff",
-    paddingHorizontal: 20,
+    borderTopRightRadius: 22,
+    borderBottomRightRadius: 22,
+    paddingHorizontal: 18,
     shadowColor: "#000",
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.18,
     shadowRadius: 20,
     elevation: 8,
   },
-  drawerTitle: { color: colors.text, fontSize: 24, fontWeight: "900" },
-  drawerSub: { color: colors.textMuted, marginBottom: 20, marginTop: 2 },
-  drawerItem: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  drawerLogo: { width: 52, height: 52, borderRadius: 14, marginBottom: 14 },
+  drawerProfile: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.08)",
+    borderRadius: 16,
+    backgroundColor: "#fff",
   },
-  drawerItemText: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  drawerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: "#7c3aed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  drawerAvatarText: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  drawerWho: { flex: 1, minWidth: 0 },
+  drawerNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  drawerName: {
+    flexShrink: 1,
+    color: "#0f172a",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  drawerEditPill: {
+    backgroundColor: "#ede9fe",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  drawerEditText: { color: "#6d28d9", fontSize: 12, fontWeight: "700" },
+  drawerWallet: { marginTop: 4, color: "#94a3b8", fontSize: 12, fontWeight: "600" },
+  drawerNav: { flex: 1, paddingTop: 18, gap: 2 },
+  drawerItem: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  drawerItemActive: { backgroundColor: "#ede9fe" },
+  drawerItemText: { color: "#0f172a", fontSize: 15, fontWeight: "700" },
+  drawerItemTextActive: { color: "#6d28d9" },
+  drawerFooter: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(15,23,42,0.08)",
+    paddingTop: 16,
+    gap: 12,
+  },
+  drawerFooterLink: { color: "#3b82f6", fontSize: 13, fontWeight: "600" },
 });
