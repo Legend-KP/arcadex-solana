@@ -25,6 +25,9 @@ export function buildBootstrapInject({ session, sparkState }) {
       window.__ARCADEX_NATIVE_SHELL__ = true;
       window.__ARCADEX_BRIDGE__ = 'mwa-v1';
       try {
+        document.documentElement.classList.add('arcadex-native-shell');
+      } catch (e) {}
+      try {
         localStorage.setItem('arcadex_guest_sparks', ${escapeForJsString(sparkJson)});
       } catch (e) {}
       ${pairs}

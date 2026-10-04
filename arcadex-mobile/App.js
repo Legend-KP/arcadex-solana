@@ -263,7 +263,7 @@ function ArcadeShell() {
   if (screen === "game" && activeGame) {
     return (
       <>
-        <StatusBar style="light" />
+        <StatusBar style="light" translucent backgroundColor="transparent" />
         <GameScreen
           game={activeGame}
           session={session}

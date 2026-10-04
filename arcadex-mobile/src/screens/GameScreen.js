@@ -8,7 +8,6 @@ import {
   View,
 } from "react-native";
 import { WebView } from "react-native-webview";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { gamePlayUrl } from "../api";
 import { buildBootstrapInject, buildSparksExportScript } from "../inject";
 import { colors } from "../theme";
@@ -27,7 +26,6 @@ export default function GameScreen({
   onSparksExport,
   onWalletBusyError,
 }) {
-  const insets = useSafeAreaInsets();
   const webRef = useRef(null);
   const busyRef = useRef(false);
   const leavingRef = useRef(false);
@@ -251,9 +249,8 @@ export default function GameScreen({
   );
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* Native chrome is intentionally minimal — web GameMenu owns back UI.
-          LEAVE_GAME / home-route detection still closes this screen. */}
+    <View style={styles.root}>
+      {/* Full-bleed WebView — games own their safe-area padding for HUD. */}
       {loadError ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{loadError}</Text>
@@ -274,6 +271,8 @@ export default function GameScreen({
         mediaPlaybackRequiresUserAction={false}
         setSupportMultipleWindows={false}
         androidLayerType="hardware"
+        automaticallyAdjustContentInsets={false}
+        contentInsetAdjustmentBehavior="never"
         injectedJavaScriptBeforeContentLoaded={buildBootstrapInject({
           session,
           sparkState,
