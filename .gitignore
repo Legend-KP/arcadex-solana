@@ -53,6 +53,9 @@ contract-deploy/node_modules/
 *.example
 unity-bridge/DEVELOPER_GUIDE.md
 *.md
+!README.md
+!arcadex-mobile/README.md
+!arcadex-mobile/AGENTS.md
 /unity-bridge
 unity-coinsort-fix/ArcadeXBridge.cs
 unity-coinsort-fix/ArcadeXBridge.jslib

@@ -14,6 +14,10 @@ import {
   setCachedSolanaAddress,
   setCachedSolanaSignIn,
 } from "@/lib/solana-address";
+import {
+  clearWalletSessionToken,
+  setWalletSessionToken,
+} from "@/lib/wallet-session-client";
 
 export function useSolanaMwaConnect() {
   const [native, setNative] = useState(false);
@@ -56,7 +60,7 @@ export function useSolanaMwaConnect() {
     };
   }, []);
 
-  /** Step 4+5: connect wallet and sign free ArcadeX sign-in message. */
+  /** Connect wallet, sign free ArcadeX message, exchange JWT session. */
   const connect = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -64,6 +68,29 @@ export function useSolanaMwaConnect() {
       const result = await requestMwaConnectAndSignIn();
       setCachedSolanaAddress(result.address, result.label ?? undefined);
       setCachedSolanaSignIn(result.message, result.signatureBase64);
+
+      try {
+        const res = await fetch("/api/wallet/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            walletAddress: result.address,
+            message: result.message,
+            signatureBase64: result.signatureBase64,
+          }),
+          cache: "no-store",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          token?: string;
+          error?: string;
+        };
+        if (res.ok && data.token) {
+          setWalletSessionToken(data.token);
+        }
+      } catch {
+        // Local sign-in cache still enables MWA payments if session mint fails.
+      }
+
       setAddress(result.address);
       setLabel(result.label ?? null);
       setSignedIn(true);
@@ -98,6 +125,7 @@ export function useSolanaMwaConnect() {
       // Still clear local cache.
     }
     clearCachedSolanaAddress();
+    clearWalletSessionToken();
     setAddress(null);
     setLabel(null);
     setSignedIn(false);
