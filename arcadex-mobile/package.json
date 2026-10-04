@@ -15,6 +15,7 @@
     "expo-haptics": "~57.0.3",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
+    "expo-video": "~57.0.5",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-get-random-values": "^2.0.0",

@@ -25,6 +25,7 @@ import HomeScreen from "./src/screens/HomeScreen";
 import WalletSheet from "./src/screens/WalletSheet";
 import SparksSheet from "./src/screens/SparksSheet";
 import GameScreen from "./src/screens/GameScreen";
+import { pushRecentPlayId } from "./src/game-utils";
 import { colors } from "./src/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -204,7 +205,7 @@ function ArcadeShell() {
   );
 
   if (!booted) {
-    return <View style={styles.boot} />;
+    return <View style={[styles.boot, { backgroundColor: colors.bgSoft }]} />;
   }
 
   if (screen === "game" && activeGame) {
@@ -232,7 +233,7 @@ function ArcadeShell() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <HomeScreen
         session={session}
         sparks={sparks}
@@ -246,6 +247,7 @@ function ArcadeShell() {
           setSparksOpen(true);
         }}
         onOpenGame={(game) => {
+          pushRecentPlayId(game.id).catch(() => {});
           setActiveGame(game);
           setScreen("game");
         }}
@@ -280,8 +282,8 @@ function ArcadeShell() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
-  boot: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: colors.bgSoft },
+  boot: { flex: 1, backgroundColor: colors.bgSoft },
   crash: {
     flex: 1,
     backgroundColor: "#0b0b0f",

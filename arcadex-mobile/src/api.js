@@ -25,6 +25,22 @@ export async function fetchGames() {
   };
 }
 
+export async function fetchActivityLeaderboard() {
+  const res = await fetch(`${apiBase()}/api/leaderboard/activity`, {
+    cache: "no-store",
+  });
+  const data = await parseJson(res);
+  return Array.isArray(data.entries) ? data.entries : [];
+}
+
+export function logoUrl() {
+  return `${apiBase()}/logo.png`;
+}
+
+export function logoFallbackUrl() {
+  return `${apiBase()}/thumbnails/arcadeX.webp`;
+}
+
 export async function createWalletSession({
   walletAddress,
   message,

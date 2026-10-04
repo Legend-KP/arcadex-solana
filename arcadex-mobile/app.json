@@ -2,19 +2,20 @@
   "expo": {
     "name": "ArcadeX",
     "slug": "arcadex-mobile",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "scheme": "arcadex",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#07070c"
+      "backgroundColor": "#f7faff"
     },
     "plugins": [
       "expo-dev-client",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-video"
     ],
     "ios": {
       "supportsTablet": true,

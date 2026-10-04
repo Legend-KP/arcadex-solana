@@ -64,7 +64,7 @@ export default function SparksSheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
+  backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.4)" },
   sheet: {
     backgroundColor: colors.bgElevated,
     borderTopLeftRadius: 24,
@@ -79,13 +79,13 @@ const styles = StyleSheet.create({
     width: 42,
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
+    backgroundColor: "#d1d5db",
     marginBottom: spacing.md,
   },
   title: {
     color: colors.text,
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "900",
     marginBottom: 8,
   },
   body: {
@@ -95,14 +95,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   infoBox: {
-    backgroundColor: colors.bgCard,
+    backgroundColor: colors.sparkBg,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(250, 204, 21, 0.28)",
+    borderColor: colors.sparkBorder,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  infoValue: { color: colors.spark, fontSize: 16, fontWeight: "800" },
+  infoValue: { color: colors.spark, fontSize: 16, fontWeight: "900" },
   infoMeta: { color: colors.textDim, marginTop: 4, fontSize: 12 },
   error: { color: colors.danger, marginBottom: spacing.md, fontSize: 13 },
   primaryBtn: {
@@ -112,9 +112,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
-  primaryBtnText: { color: "#041016", fontWeight: "800", fontSize: 15 },
+  primaryBtnText: { color: "#422006", fontWeight: "900", fontSize: 15 },
   secondaryAction: {
-    backgroundColor: colors.bgCard,
+    backgroundColor: "#fff",
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: 14,
@@ -122,11 +122,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
-  secondaryActionText: { color: colors.text, fontWeight: "700", fontSize: 15 },
-  secondaryBtn: {
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  secondaryBtnText: { color: colors.textMuted, fontWeight: "600" },
+  secondaryActionText: { color: colors.text, fontWeight: "800", fontSize: 15 },
+  secondaryBtn: { borderRadius: 14, paddingVertical: 12, alignItems: "center" },
+  secondaryBtnText: { color: colors.textMuted, fontWeight: "700" },
 });
