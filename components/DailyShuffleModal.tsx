@@ -456,7 +456,7 @@ export default function DailyShuffleModal({
           Daily Jackpot
         </h2>
         <p className="daily-shuffle-sub">
-          One no-cost shuffle every 24 hours.
+          One shuffle every 24 hours.
         </p>
 
         {phase === "intro" || phase === "busy" ? (
@@ -597,7 +597,7 @@ export default function DailyShuffleModal({
                 void handleShuffle();
               }}
             >
-              {phase === "busy" ? "Preparing…" : "Shuffle now · No cost"}
+              {phase === "busy" ? "Preparing…" : "Shuffle now"}
             </button>
           ) : null}
 

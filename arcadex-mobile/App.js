@@ -26,6 +26,7 @@ import {
   loadSparkState,
 } from "./src/sparks";
 import HomeScreen from "./src/screens/HomeScreen";
+import IntroSplash, { INTRO_BG } from "./src/screens/IntroSplash";
 import WalletSheet from "./src/screens/WalletSheet";
 import SparksSheet from "./src/screens/SparksSheet";
 import PlayerNameSheet from "./src/screens/PlayerNameSheet";
@@ -87,6 +88,8 @@ function ArcadeShell() {
   const [nameError, setNameError] = useState("");
   const [nameIntent, setNameIntent] = useState("setup");
   const [booted, setBooted] = useState(false);
+  /** Cold-start only — resets when the process restarts, not when leaving a game. */
+  const [introDone, setIntroDone] = useState(false);
   const [shuffleOpen, setShuffleOpen] = useState(false);
   const shufflePromptedForRef = useRef("");
 
@@ -306,8 +309,19 @@ function ArcadeShell() {
     [session?.address]
   );
 
+  // Cold open: play full intro even if session/sparks already loaded.
+  // Returning from a game keeps introDone=true so this never re-runs.
+  if (!introDone) {
+    return (
+      <IntroSplash
+        onReady={hideSplash}
+        onFinished={() => setIntroDone(true)}
+      />
+    );
+  }
+
   if (!booted) {
-    return <View style={[styles.boot, { backgroundColor: colors.bgSoft }]} />;
+    return <View style={[styles.boot, { backgroundColor: INTRO_BG }]} />;
   }
 
   if (screen === "game" && activeGame) {
@@ -423,7 +437,7 @@ function ArcadeShell() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgSoft },
-  boot: { flex: 1, backgroundColor: colors.bgSoft },
+  boot: { flex: 1, backgroundColor: INTRO_BG },
   crash: {
     flex: 1,
     backgroundColor: "#0b0b0f",

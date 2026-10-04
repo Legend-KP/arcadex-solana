@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f7faff"
+      "backgroundColor": "#A27336"
     },
     "plugins": [
       "expo-dev-client",
