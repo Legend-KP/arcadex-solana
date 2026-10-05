@@ -42,6 +42,7 @@ export default function ActivityLeaderboardPanel() {
   const [countdown, setCountdown] = useState("");
   const [endsAt, setEndsAt] = useState(0);
   const [totalParticipants, setTotalParticipants] = useState(0);
+  const [error, setError] = useState("");
   const [me, setMe] = useState<{
     rank: number | null;
     score: number;
@@ -51,6 +52,7 @@ export default function ActivityLeaderboardPanel() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError("");
     getActivityLeaderboard({
       walletAddress: walletAddress || undefined,
       week: "current",
@@ -65,11 +67,14 @@ export default function ActivityLeaderboardPanel() {
         );
         if (data.resetsIn) setCountdown(data.resetsIn);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return;
         setEntries([]);
         setMe(null);
         setTotalParticipants(0);
+        setError(
+          err instanceof Error ? err.message : "Could not load Weekly XP Board."
+        );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -136,10 +141,14 @@ export default function ActivityLeaderboardPanel() {
 
         <div className="lb-list">
           {loading && <p className="lb-empty">Loading...</p>}
-          {!loading && entries.length === 0 && (
-            <p className="lb-empty">No activity yet — play a game!</p>
+          {!loading && error && <p className="lb-empty">{error}</p>}
+          {!loading && !error && entries.length === 0 && (
+            <p className="lb-empty">
+              No XP yet this week — play a game or check in.
+            </p>
           )}
           {!loading &&
+            !error &&
             entries.map((entry, index) => {
               const isYou =
                 Boolean(myWallet) &&
@@ -204,8 +213,8 @@ export default function ActivityLeaderboardPanel() {
             <p className="lb-howto__text">
               <strong>How it works: Top 10 Wins it All</strong>
               <br />
-              Weekly board resets every Monday 00:00 UTC. Play games to earn XP
-              and climb. 100% of the fees generated goes into the rewards!
+              Weekly board resets every Monday 00:00 UTC. Play games or check in
+              to earn XP and climb. 100% of the fees generated goes into the rewards!
             </p>
           </div>
         </div>

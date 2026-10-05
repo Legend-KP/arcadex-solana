@@ -51,16 +51,21 @@ import {
   ACTIVITY_LEADERBOARD_MAX_ENTRIES,
   ACTIVITY_PLAY_COOLDOWN_MS,
   ACTIVITY_TOP_MIRROR_SIZE,
+  ACTIVITY_XP_PER_ACTIVE_DAY,
+  ACTIVITY_XP_PER_CHECKIN,
+  ACTIVITY_XP_PER_PLAY,
+  ACTIVITY_XP_PER_SPEND_UNIT,
+  ACTIVITY_XP_PER_TX,
   ActivityCounters,
   ActivityEventKind,
   ActivityLeaderboardEntry,
+  activityQualifiesForBoard,
   coerceActivityCounters,
   compareActivityEntries,
   emptyActivityCounters,
   getIsoWeekWindow,
   utcDayKey,
   computeActivityXp,
-  resolveActivityEntryXp,
 } from "@/lib/activity-week";
 import {
   GameStateConflictError,
@@ -514,7 +519,7 @@ export async function spendSparkOnServer(
 
     if (state.infiniteUntil && state.infiniteUntil > now) {
       if (!row) await writeSparksState(db, wallet, state);
-      recordActivityEventBestEffort(wallet, "play");
+      await recordActivityEvent(wallet, "play");
       return {
         state,
         sparks: computeSparkSnapshot(state),
@@ -531,7 +536,7 @@ export async function spendSparkOnServer(
 
     if (!row) {
       await writeSparksState(db, wallet, next);
-      recordActivityEventBestEffort(wallet, "play");
+      await recordActivityEvent(wallet, "play");
       return {
         state: next,
         sparks: computeSparkSnapshot(next),
@@ -555,7 +560,7 @@ export async function spendSparkOnServer(
       .run();
 
     if (update.meta?.changes === 1) {
-      recordActivityEventBestEffort(wallet, "play");
+      await recordActivityEvent(wallet, "play");
       return {
         state: next,
         sparks: computeSparkSnapshot(next),
@@ -1397,19 +1402,6 @@ type ActivityRow = {
   name: string | null;
 };
 
-type ActivityLbRow = {
-  week_id: string;
-  wallet: string;
-  name: string;
-  score: number;
-  sparks_spent: number;
-  active_days: number;
-  txs: number;
-  spend_units: number;
-  check_ins?: number | null;
-  updated_at: number | null;
-};
-
 function activityRowToCounters(row: ActivityRow | null): ActivityCounters {
   if (!row) return emptyActivityCounters();
   return coerceActivityCounters({
@@ -1440,20 +1432,6 @@ function activityEntryFromCounters(
     checkIns: counters.checkIns,
     updatedAt: counters.updatedAt,
   };
-}
-
-function lbRowToEntry(row: ActivityLbRow): ActivityLeaderboardEntry {
-  return resolveActivityEntryXp({
-    name: row.name,
-    score: row.score,
-    walletAddress: normalizeWalletAddress(row.wallet),
-    sparksSpent: row.sparks_spent,
-    activeDays: row.active_days,
-    txs: row.txs,
-    spendUnits: row.spend_units,
-    checkIns: row.check_ins ?? 0,
-    updatedAt: row.updated_at ?? undefined,
-  });
 }
 
 function activityCountersStatement(
@@ -1695,8 +1673,8 @@ export async function recordActivityEvent(
       activityCountersStatement(db, wallet, weekId, next),
     ];
 
-    // Public board is sparks-first — don't list visit-only / 0-spark users.
-    if (next.sparksSpent > 0) {
+    // Visit-only users stay off the public board. Plays, check-ins, txs, and spends qualify.
+    if (activityQualifiesForBoard(next)) {
       writes.push(
         activityLeaderboardStatement(
           db,
@@ -1726,27 +1704,52 @@ export function recordActivityEventBestEffort(
   scheduleWorkerWork(recordActivityEvent(walletAddress, kind, opts));
 }
 
+/** Same weights as computeActivityXp, so SQL order matches the displayed board. */
+const ACTIVITY_XP_SQL = `(
+  sparks_spent * ${ACTIVITY_XP_PER_PLAY}
+  + active_days * ${ACTIVITY_XP_PER_ACTIVE_DAY}
+  + txs * ${ACTIVITY_XP_PER_TX}
+  + spend_units * ${ACTIVITY_XP_PER_SPEND_UNIT}
+  + IFNULL(check_ins, 0) * ${ACTIVITY_XP_PER_CHECKIN}
+)`;
+
+/** Plays, check-ins, txs, and spends. Visits alone do not qualify. */
+const ACTIVITY_BOARD_SQL = `(
+  sparks_spent > 0
+  OR IFNULL(check_ins, 0) > 0
+  OR txs > 0
+  OR spend_units > 0
+)`;
+
 export async function fetchActivityLeaderboardFromServer(
   weekId: string,
   limit = ACTIVITY_LEADERBOARD_MAX_ENTRIES
 ): Promise<ActivityLeaderboardEntry[]> {
   const db = await requireD1();
+  // user_activity is the source of truth. The mirror used to skip anyone
+  // who had not spent a spark, which hid check-in XP.
   const { results } = await db
     .prepare(
-      `SELECT week_id, wallet, name, score, sparks_spent, active_days, txs, spend_units,
-              check_ins, updated_at
-       FROM activity_leaderboard_entries
-       WHERE week_id = ? AND sparks_spent > 0
-       ORDER BY score DESC, updated_at ASC
+      `SELECT wallet, week_id, sparks_spent, active_days, txs, spend_units,
+              check_ins, last_active_day, last_play_at, updated_at, name
+       FROM user_activity
+       WHERE week_id = ? AND ${ACTIVITY_BOARD_SQL}
+       ORDER BY ${ACTIVITY_XP_SQL} DESC, updated_at ASC
        LIMIT ?`
     )
     .bind(weekId, Math.max(limit, ACTIVITY_TOP_MIRROR_SIZE))
-    .all<ActivityLbRow>();
+    .all<ActivityRow>();
 
   return (results ?? [])
-    .map(lbRowToEntry)
+    .flatMap((row) => {
+      if (!isWalletAddress(row.wallet)) return [];
+      const entry = activityEntryFromCounters(
+        row.wallet,
+        activityRowToCounters(row)
+      );
+      return entry.score > 0 && activityQualifiesForBoard(entry) ? [entry] : [];
+    })
     .sort(compareActivityEntries)
-    .filter((e) => e.score > 0)
     .slice(0, limit);
 }
 
@@ -1768,7 +1771,7 @@ export async function fetchUserActivityFromServer(
   return activityRowToCounters(row);
 }
 
-/** Count players with at least one play this week (for XP board participants bar). */
+/** Players with plays, check-ins, txs, or spends this week. */
 export async function countActivityParticipants(
   weekId: string
 ): Promise<number> {
@@ -1776,8 +1779,8 @@ export async function countActivityParticipants(
   const row = await db
     .prepare(
       `SELECT COUNT(*) AS n
-       FROM activity_leaderboard_entries
-       WHERE week_id = ? AND sparks_spent > 0`
+       FROM user_activity
+       WHERE week_id = ? AND ${ACTIVITY_BOARD_SQL}`
     )
     .bind(weekId)
     .first<{ n: number }>();

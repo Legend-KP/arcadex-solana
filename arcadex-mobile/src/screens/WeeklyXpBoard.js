@@ -127,7 +127,9 @@ export default function WeeklyXpBoard({ visible, walletAddress, onClose }) {
                   <Text style={styles.retry}>Tap to retry</Text>
                 </Pressable>
               ) : entries.length === 0 ? (
-                <Text style={styles.empty}>No activity yet — play a game!</Text>
+                <Text style={styles.empty}>
+                  No XP yet this week — play a game or check in.
+                </Text>
               ) : (
                 entries.map((entry, index) => {
                   const wallet = entry.walletAddress || entry.wallet || "";
@@ -173,8 +175,8 @@ export default function WeeklyXpBoard({ visible, walletAddress, onClose }) {
                 <Text style={styles.howtoStrong}>
                   How it works: Top 10 Wins it All{"\n"}
                 </Text>
-                Weekly board resets every Monday 00:00 UTC. Play games to earn XP
-                and climb. 100% of the fees generated goes into the rewards!
+                Weekly board resets every Monday 00:00 UTC. Play games or check in
+                to earn XP and climb. 100% of the fees generated goes into the rewards!
               </Text>
             </View>
           </ScrollView>

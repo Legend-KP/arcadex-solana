@@ -58,6 +58,22 @@ export async function getActivityLeaderboard(opts?: {
   };
 }
 
+/** Count a signed-in game start toward weekly XP. */
+export async function recordActivityPlay(
+  walletAddress: string
+): Promise<void> {
+  try {
+    await fetch("/api/activity/play", {
+      method: "POST",
+      headers: walletAuthHeaders(),
+      body: JSON.stringify({ walletAddress }),
+      cache: "no-store",
+    });
+  } catch {
+    // Best-effort; the server write is awaited when the request arrives.
+  }
+}
+
 export async function pingActivityVisit(
   walletAddress: string
 ): Promise<void> {

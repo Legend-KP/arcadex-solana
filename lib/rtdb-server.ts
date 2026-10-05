@@ -47,6 +47,7 @@ import {
   ActivityCounters,
   ActivityEventKind,
   ActivityLeaderboardEntry,
+  activityQualifiesForBoard,
   coerceActivityCounters,
   compareActivityEntries,
   emptyActivityCounters,
@@ -609,7 +610,7 @@ export async function spendSparkOnServer(
   );
 
   // Count every successful game-start (including Infinite Spark) toward weekly activity.
-  recordActivityEventBestEffort(wallet, "play");
+  await recordActivityEvent(wallet, "play");
 
   return {
     state,
@@ -1549,6 +1550,8 @@ function mapToActivityEntries(
         txs: typeof value.txs === "number" ? value.txs : undefined,
         spendUnits:
           typeof value.spendUnits === "number" ? value.spendUnits : undefined,
+        checkIns:
+          typeof value.checkIns === "number" ? value.checkIns : undefined,
         updatedAt:
           typeof value.updatedAt === "number" ? value.updatedAt : undefined,
       })
@@ -1704,8 +1707,8 @@ export async function recordActivityEvent(
 
     await writePath(path, next);
 
-    // Public board is sparks-first — don't list visit-only / 0-spark users.
-    if (next.sparksSpent <= 0) {
+    // Visit-only users stay off the public board. Plays, check-ins, txs, and spends qualify.
+    if (!activityQualifiesForBoard(next)) {
       return;
     }
 
@@ -1760,7 +1763,7 @@ export async function fetchActivityLeaderboardFromServer(
   limit = ACTIVITY_LEADERBOARD_MAX_ENTRIES
 ): Promise<ActivityLeaderboardEntry[]> {
   const ranked = await ensureActivityTopMirror(weekId);
-  return ranked.filter((e) => e.score > 0).slice(0, limit);
+  return ranked.filter((e) => e.score > 0 && activityQualifiesForBoard(e)).slice(0, limit);
 }
 
 export async function fetchUserActivityFromServer(

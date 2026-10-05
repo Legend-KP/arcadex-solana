@@ -70,6 +70,23 @@ export function computeActivityXp(counters: Pick<
 }
 
 /**
+ * Public board includes plays, check-ins, txs, and spends.
+ * A home visit only bumps active days and stays off the board.
+ */
+export function activityQualifiesForBoard(
+  counters: Partial<
+    Pick<ActivityCounters, "sparksSpent" | "checkIns" | "txs" | "spendUnits">
+  >
+): boolean {
+  return (
+    Math.max(0, counters.sparksSpent ?? 0) > 0 ||
+    Math.max(0, counters.checkIns ?? 0) > 0 ||
+    Math.max(0, counters.txs ?? 0) > 0 ||
+    Math.max(0, counters.spendUnits ?? 0) > 0
+  );
+}
+
+/**
  * Normalize a stored board row to current XP.
  * Legacy rows used `score` as sparksSpent before the composite formula.
  */

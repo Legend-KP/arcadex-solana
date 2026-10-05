@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.trenchverse.arcadex",
+      "sha256_cert_fingerprints": [
+        "04:A1:7A:24:EA:8E:2A:54:10:C1:C6:6A:0D:C1:1A:C9:28:AB:CF:53:70:80:79:24:6D:56:69:1F:88:D8:FB:6B"
+      ]
+    }
+  }
+]

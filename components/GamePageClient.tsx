@@ -10,6 +10,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import NoSparksModal from "@/components/NoSparksModal";
 import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 import { leaveGameToHome } from "@/lib/arcadex-native-bridge";
+import { recordActivityPlay } from "@/lib/activity-client";
 import { rememberRecentPlay } from "@/lib/recent-plays";
 import { useSparks } from "@/components/SparkProvider";
 import {
@@ -132,6 +133,9 @@ export default function GamePageClient() {
     setStarting(true);
     try {
       await spendForGame();
+      if (walletAddress) {
+        void recordActivityPlay(walletAddress);
+      }
       setStarted(true);
     } catch (err) {
       setSparkError(
