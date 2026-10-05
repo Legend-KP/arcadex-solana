@@ -1,36 +1,25 @@
-import { useCallback, useEffect, useRef } from "react";
-import { Image, StyleSheet, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Asset } from "expo-asset";
 import { useEventListener } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { StatusBar } from "expo-status-bar";
 
-/** Matches whitened intro video + native splash. */
+/** Full-screen intro backdrop. */
 export const INTRO_BG = "#FFFFFF";
 
-const INTRO_SOURCE = require("../../assets/app-loading.mp4");
-const INTRO_POSTER = require("../../assets/intro-poster.png");
+const INTRO_MODULE = require("../../assets/app-loading.mp4");
 /** Clip is ~4s; hard cap so a stalled player never blocks the app. */
-const INTRO_FALLBACK_MS = 5200;
+const INTRO_FALLBACK_MS = 5500;
 
 /**
- * Cold-start intro: muted, centered, full play once.
- * Preloads the bundled asset, keeps VideoView visible (no opacity gate),
- * and retries play so Android actually starts the clip.
+ * Cold-start intro: resolve a real file URI first (same approach as catalog
+ * previews), then mount the player so Android actually starts playback.
  */
 export default function IntroSplash({ onFinished, onReady }) {
+  const [uri, setUri] = useState(null);
   const finishedRef = useRef(false);
   const readyRef = useRef(false);
-  const { width: winW, height: winH } = useWindowDimensions();
-
-  // Source is 720×1280 — contain/center on white (same placement).
-  const aspect = 720 / 1280;
-  let videoW = winW;
-  let videoH = winW / aspect;
-  if (videoH > winH) {
-    videoH = winH;
-    videoW = winH * aspect;
-  }
 
   const finish = useCallback(() => {
     if (finishedRef.current) return;
@@ -44,15 +33,55 @@ export default function IntroSplash({ onFinished, onReady }) {
     onReady?.();
   }, [onReady]);
 
-  // Warm the asset into a real file path before / while the player starts.
   useEffect(() => {
-    Asset.fromModule(INTRO_SOURCE)
-      .downloadAsync()
-      .then(() => markReady())
-      .catch(() => markReady());
+    let cancelled = false;
+    (async () => {
+      try {
+        const asset = Asset.fromModule(INTRO_MODULE);
+        await asset.downloadAsync();
+        if (cancelled) return;
+        const next = asset.localUri || asset.uri;
+        setUri(next || INTRO_MODULE);
+      } catch (err) {
+        console.warn("intro_asset_load_failed", err);
+        if (!cancelled) setUri(INTRO_MODULE);
+      } finally {
+        if (!cancelled) markReady();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [markReady]);
 
-  const player = useVideoPlayer(INTRO_SOURCE, (p) => {
+  // Safety: never leave users on a blank intro forever.
+  useEffect(() => {
+    const t = setTimeout(finish, INTRO_FALLBACK_MS);
+    return () => clearTimeout(t);
+  }, [finish]);
+
+  return (
+    <View style={styles.root} accessibilityLabel="ArcadeX loading">
+      <StatusBar style="dark" translucent backgroundColor={INTRO_BG} />
+      {uri ? (
+        <IntroPlayer uri={uri} onPlaying={markReady} onEnded={finish} />
+      ) : null}
+    </View>
+  );
+}
+
+/** Mounted only after we have a playable URI — mirrors HomeScreen PreviewVideo. */
+function IntroPlayer({ uri, onPlaying, onEnded }) {
+  const { width: winW, height: winH } = useWindowDimensions();
+  const aspect = 720 / 1280;
+  let videoW = winW;
+  let videoH = winW / aspect;
+  if (videoH > winH) {
+    videoH = winH;
+    videoW = winH * aspect;
+  }
+
+  const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
     p.muted = true;
     p.play();
@@ -62,26 +91,25 @@ export default function IntroSplash({ onFinished, onReady }) {
     if (status === "readyToPlay") {
       try {
         player.muted = true;
-        player.currentTime = 0;
+        player.loop = false;
         player.play();
       } catch {
         /* ignore */
       }
-      markReady();
+      onPlaying?.();
     }
     if (status === "error") {
       console.warn("intro_video_error", error);
-      markReady();
-      finish();
+      onEnded?.();
     }
   });
 
   useEventListener(player, "playingChange", ({ isPlaying }) => {
-    if (isPlaying) markReady();
+    if (isPlaying) onPlaying?.();
   });
 
   useEventListener(player, "playToEnd", () => {
-    finish();
+    onEnded?.();
   });
 
   useEffect(() => {
@@ -93,51 +121,33 @@ export default function IntroSplash({ onFinished, onReady }) {
       /* ignore */
     }
 
-    // Android sometimes needs a second play() after the surface attaches.
+    // Android: surface sometimes attaches after first play() — keep kicking.
     const kick = setInterval(() => {
       try {
-        if (!finishedRef.current && !player.playing) {
-          player.play();
-        }
+        if (!player.playing) player.play();
       } catch {
         /* ignore */
       }
-    }, 350);
+    }, 400);
 
-    const endTimer = setTimeout(finish, INTRO_FALLBACK_MS);
     return () => {
       clearInterval(kick);
-      clearTimeout(endTimer);
       try {
         player.pause();
       } catch {
         /* ignore */
       }
     };
-  }, [player, finish]);
+  }, [player]);
 
   return (
-    <View style={styles.root} accessibilityLabel="ArcadeX loading">
-      <StatusBar style="dark" translucent backgroundColor={INTRO_BG} />
-      {/* Poster underneath only until first decoded frame paints */}
-      <Image
-        source={INTRO_POSTER}
-        style={[styles.poster, { width: videoW, height: videoH }]}
-        resizeMode="contain"
-      />
-      <View
-        style={[styles.videoWrap, { width: videoW, height: videoH }]}
-        pointerEvents="none"
-      >
-        <VideoView
-          player={player}
-          style={StyleSheet.absoluteFill}
-          contentFit="contain"
-          nativeControls={false}
-          surfaceType="textureView"
-        />
-      </View>
-    </View>
+    <VideoView
+      player={player}
+      style={{ width: videoW, height: videoH }}
+      contentFit="contain"
+      nativeControls={false}
+      surfaceType="textureView"
+    />
   );
 }
 
@@ -147,12 +157,5 @@ const styles = StyleSheet.create({
     backgroundColor: INTRO_BG,
     alignItems: "center",
     justifyContent: "center",
-  },
-  poster: {
-    position: "absolute",
-  },
-  videoWrap: {
-    overflow: "hidden",
-    backgroundColor: "transparent",
   },
 });
