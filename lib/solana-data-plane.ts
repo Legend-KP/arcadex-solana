@@ -1,6 +1,10 @@
 /**
  * ArcadeX Solana must never read or write ArcadeX Celo D1, KV, Firestore, or RTDB.
  * Allowed Cloudflare ids are the databases and namespaces created for this app.
+ *
+ * Server-only: never import this module from client components.
+ * Firebase service credentials stay on the Worker; public Firebase web config
+ * is not used here so it cannot be mistaken for a bundled secret.
  */
 
 export const SOLANA_D1_DATABASE_IDS = new Set([
@@ -52,17 +56,15 @@ export function assertSolanaKvId(namespaceId: unknown): void {
   }
 }
 
-/** Throws when any Firebase env var points at the ArcadeX Celo project. */
+/**
+ * Throws when server Firebase identity env points at the ArcadeX Celo project.
+ * Reads only Worker/server secrets — never NEXT_PUBLIC_* (those are public web config).
+ */
 export function assertNotCeloFirebase(): void {
   const fields = [
     process.env.FIREBASE_PROJECT_ID,
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     process.env.FIREBASE_DATABASE_URL,
-    process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
     process.env.FIREBASE_CLIENT_EMAIL,
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   ];
 
   for (const value of fields) {

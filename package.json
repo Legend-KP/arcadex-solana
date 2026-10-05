@@ -22,7 +22,7 @@
     "@solana/web3.js": "^1.99.0",
     "bs58": "^5.0.0",
     "jose": "^6.2.3",
-    "next": "^15.3.4",
+    "next": "15.5.27",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tweetnacl": "^1.0.3"
@@ -33,7 +33,7 @@
     "@types/react-dom": "^19.1.0",
     "dotenv": "^17.4.2",
     "eslint": "^9.28.0",
-    "eslint-config-next": "^15.3.4",
+    "eslint-config-next": "15.5.27",
     "typescript": "^5.8.0",
     "wrangler": "^4.20.0"
   }
