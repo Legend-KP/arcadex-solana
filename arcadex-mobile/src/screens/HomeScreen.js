@@ -440,9 +440,6 @@ function MenuDrawer({
                 <Text style={styles.drawerFooterLink}>{link.label}</Text>
               </Pressable>
             ))}
-            <Pressable onPress={onClose}>
-              <Text style={styles.drawerFooterLink}>Tutorial</Text>
-            </Pressable>
           </View>
         </View>
       </View>

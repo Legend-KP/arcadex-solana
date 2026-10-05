@@ -41,7 +41,7 @@ export default function AppDrawer({
   onNavigate,
   onOpenSparks,
 }: AppDrawerProps) {
-  const { playerName, walletAddress, openNameEditor, openOnboarding } =
+  const { playerName, walletAddress, openNameEditor } =
     usePlayerProfile();
   const solana = getCachedSolanaAddress();
   const address = walletAddress || solana || "";
@@ -148,15 +148,6 @@ export default function AppDrawer({
           <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
             Support
           </a>
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              openOnboarding();
-            }}
-          >
-            Tutorial
-          </button>
         </div>
       </aside>
     </div>

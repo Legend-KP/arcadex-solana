@@ -191,7 +191,7 @@ export async function markStreakPromptedToday(walletAddress, campaignId = 1) {
 }
 
 /** Returns true when the wallet can still do today's Daily Streak check-in. */
-export async function fetchShuffleCanCheckIn(walletAddress, campaignId = 1) {
+export async function fetchStreakCanCheckIn(walletAddress, campaignId = 1) {
   if (!walletAddress) return false;
   const params = new URLSearchParams({
     walletAddress,
@@ -204,6 +204,9 @@ export async function fetchShuffleCanCheckIn(walletAddress, campaignId = 1) {
   if (!res.ok) return false;
   return Boolean(data.canCheckIn);
 }
+
+/** @deprecated use fetchStreakCanCheckIn */
+export const fetchShuffleCanCheckIn = fetchStreakCanCheckIn;
 
 export function truncateAddress(address, left = 4, right = 4) {
   if (!address) return "";

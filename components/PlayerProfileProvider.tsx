@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
-import OnboardingModal from "@/components/OnboardingModal";
 import PlayerNameModal from "@/components/PlayerNameModal";
 import ConnectWalletModal from "@/components/ConnectWalletModal";
 import DailyShuffleModal from "@/components/DailyShuffleModal";
@@ -27,11 +26,6 @@ import {
   getCachedSolanaAddress,
   hasCachedSolanaSignIn,
 } from "@/lib/solana-address";
-import {
-  hasSeenOnboarding,
-  markOnboardingSeen,
-  preloadOnboardingSlides,
-} from "@/lib/onboarding";
 import {
   clearCachedPlayerName,
   clearInvalidCachedWallet,
@@ -73,7 +67,6 @@ interface PlayerProfileContextValue {
   isGuest: boolean;
   isReady: boolean;
   updateWalletAddress: (walletAddress: string) => Promise<void>;
-  openOnboarding: () => void;
   openNameEditor: () => void;
   streakStatus: StreakStatus | null;
   refreshStreakStatus: () => Promise<void>;
@@ -122,42 +115,21 @@ export default function PlayerProfileProvider({
   const [showModal, setShowModal] = useState(false);
   const [nameIntent, setNameIntent] = useState<"create" | "edit">("create");
   const [showConnectWallet, setShowConnectWallet] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [walletSignedIn, setWalletSignedIn] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [dailyPlayMode, setDailyPlayMode] = useState<DailyPlayMode>("shuffle");
-  const [dailyCampaignId, setDailyCampaignId] = useState(3);
+  const [dailyPlayMode, setDailyPlayMode] = useState<DailyPlayMode>("streak");
+  const [dailyCampaignId, setDailyCampaignId] = useState(1);
   const [streakStatus, setStreakStatus] = useState<StreakStatus | null>(null);
   const [checkInVisible, setCheckInVisible] = useState(false);
   const [streakBrokenDismissed, setStreakBrokenDismissed] = useState(false);
   const [dailyGateResolved, setDailyGateResolved] = useState(false);
 
-  useEffect(() => {
-    // Native shuffle overlay: skip onboarding chrome entirely.
-    if (isShuffleHostRoute) {
-      setShowOnboarding(false);
-      return;
-    }
-    const unseen = !hasSeenOnboarding();
-    setShowOnboarding(unseen);
-    if (unseen) preloadOnboardingSlides();
-  }, [isShuffleHostRoute]);
-
-  const openOnboarding = useCallback(() => {
-    setShowOnboarding(true);
-  }, []);
-
   const openNameEditor = useCallback(() => {
     setError("");
     setNameIntent("edit");
     setShowModal(true);
-  }, []);
-
-  const handleOnboardingComplete = useCallback(() => {
-    markOnboardingSeen();
-    setShowOnboarding(false);
   }, []);
 
   useEffect(() => {
@@ -249,8 +221,9 @@ export default function PlayerProfileProvider({
           setCheckInVisible(false);
         }
       } else {
-        // Once per UTC day on first app open. Server gates check-in by UTC day key;
-        // local marker prevents re-prompting after dismiss/complete until next UTC day.
+        // Once per UTC day on first home open. Do NOT mark prompted here —
+        // first-time users still need the name modal first; marking early
+        // permanently hides streak for the rest of the UTC day.
         if (hasStreakPromptedToday(wallet, config.campaignId)) {
           const status = await fetchStreakStatus(wallet, config.campaignId, {
             fresh: true,
@@ -266,13 +239,7 @@ export default function PlayerProfileProvider({
           mode: "streak",
         });
         setStreakStatus(status);
-        if (!status.canCheckIn) {
-          markStreakPromptedToday(wallet, config.campaignId);
-          setCheckInVisible(false);
-        } else {
-          markStreakPromptedToday(wallet, config.campaignId);
-          setCheckInVisible(true);
-        }
+        setCheckInVisible(Boolean(status.canCheckIn));
       }
     } catch (err) {
       console.warn("daily play refresh failed", err);
@@ -290,7 +257,6 @@ export default function PlayerProfileProvider({
       setDailyGateResolved(true);
       return;
     }
-    if (showOnboarding === true) return;
     if (showModal) return;
     const wallet = getCachedSolanaAddress() || getCachedWallet();
     if (!wallet || !hasCachedSolanaSignIn()) {
@@ -302,7 +268,6 @@ export default function PlayerProfileProvider({
     isReady,
     isGameRoute,
     canPromptDailyPlay,
-    showOnboarding,
     showModal,
     walletAddress,
     refreshStreakStatus,
@@ -340,6 +305,7 @@ export default function PlayerProfileProvider({
         setProfile(user);
         setShowModal(false);
         setNameIntent("create");
+        void refreshStreakStatus();
         return;
       }
 
@@ -356,6 +322,7 @@ export default function PlayerProfileProvider({
       setProfile(guestProfile);
       setShowModal(false);
       if (isArcadexNativeShell()) markMwaConnectPromptSeen();
+      void refreshStreakStatus();
     } catch (err) {
       setShowModal(true);
       setError(
@@ -364,7 +331,7 @@ export default function PlayerProfileProvider({
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [refreshStreakStatus]);
 
   const updateWalletAddress = useCallback(
     async (nextWallet: string) => {
@@ -458,7 +425,6 @@ export default function PlayerProfileProvider({
       isGuest,
       isReady,
       updateWalletAddress,
-      openOnboarding,
       openNameEditor,
       streakStatus,
       refreshStreakStatus,
@@ -470,21 +436,16 @@ export default function PlayerProfileProvider({
       isGuest,
       isReady,
       updateWalletAddress,
-      openOnboarding,
       openNameEditor,
       streakStatus,
       refreshStreakStatus,
     ]
   );
 
-  const onboardingVisible = showOnboarding === true;
-  const onboardingResolved = showOnboarding !== null;
-
-  // New flow: onboarding → wallet connect → name (required after connect).
+  // Wallet connect → name (required after connect). App tutorial removed.
   useEffect(() => {
     if (!isReady) return;
     if (isShuffleHostRoute || isGameRoute) return;
-    if (!onboardingResolved || onboardingVisible) return;
     if (showModal) return;
 
     if (isArcadexNativeShell()) {
@@ -502,7 +463,6 @@ export default function PlayerProfileProvider({
       return;
     }
 
-    // Browser / non-native: keep a local name prompt after onboarding.
     if (needsPlayerName()) {
       setNameIntent("create");
       setShowModal(true);
@@ -511,24 +471,16 @@ export default function PlayerProfileProvider({
     isReady,
     isShuffleHostRoute,
     isGameRoute,
-    onboardingResolved,
-    onboardingVisible,
     showModal,
     walletSignedIn,
     needsPlayerName,
   ]);
 
   const nameModalVisible =
-    onboardingResolved &&
-    !onboardingVisible &&
     showModal &&
     (!isArcadexNativeShell() || walletSignedIn || nameIntent === "edit");
 
-  const connectWalletVisible =
-    onboardingResolved &&
-    !onboardingVisible &&
-    !nameModalVisible &&
-    showConnectWallet;
+  const connectWalletVisible = !nameModalVisible && showConnectWallet;
 
   const handleConnectWalletClose = useCallback(() => {
     markMwaConnectPromptSeen();
@@ -558,8 +510,7 @@ export default function PlayerProfileProvider({
     checkInVisible &&
     Boolean(solanaWallet) &&
     !connectWalletVisible &&
-    !nameModalVisible &&
-    !onboardingVisible;
+    !nameModalVisible;
 
   const dailyCheckInVisible =
     canPromptDailyPlay &&
@@ -570,16 +521,11 @@ export default function PlayerProfileProvider({
     !streakBrokenVisible &&
     Boolean(solanaWallet) &&
     !connectWalletVisible &&
-    !nameModalVisible &&
-    !onboardingVisible;
+    !nameModalVisible;
 
   return (
     <PlayerProfileContext.Provider value={value}>
       {children}
-      <OnboardingModal
-        open={onboardingVisible}
-        onComplete={handleOnboardingComplete}
-      />
       <PlayerNameModal
         open={nameModalVisible}
         saving={saving}

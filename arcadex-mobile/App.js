@@ -14,7 +14,7 @@ import {
   bootstrapPlayer,
   confirmSolanaPayment,
   createWalletSession,
-  fetchShuffleCanCheckIn,
+  fetchStreakCanCheckIn,
   hasStreakPromptedToday,
   markStreakPromptedToday,
   savePlayerName,
@@ -141,15 +141,11 @@ function ArcadeShell() {
           if (!cancelled) shufflePromptedForRef.current = wallet;
           return;
         }
-        const can = await fetchShuffleCanCheckIn(wallet);
+        const can = await fetchStreakCanCheckIn(wallet);
         if (cancelled) return;
         shufflePromptedForRef.current = wallet;
-        if (can) {
-          await markStreakPromptedToday(wallet);
-          if (!cancelled) setShuffleOpen(true);
-        } else {
-          await markStreakPromptedToday(wallet);
-        }
+        // Mark only after the overlay is shown/closed — not before name/setup.
+        if (can) setShuffleOpen(true);
       } catch {
         if (!cancelled) shufflePromptedForRef.current = wallet;
       }

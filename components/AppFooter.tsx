@@ -1,6 +1,5 @@
 "use client";
 
-import { usePlayerProfile } from "@/components/PlayerProfileProvider";
 import {
   FAQ_URL,
   PRIVACY_POLICY_URL,
@@ -9,8 +8,6 @@ import {
 } from "@/lib/app-footer-links";
 
 export default function AppFooter() {
-  const { openOnboarding } = usePlayerProfile();
-
   return (
     <footer className="app-footer">
       <nav className="app-footer__nav" aria-label="Legal and support">
@@ -55,16 +52,6 @@ export default function AppFooter() {
         >
           Support
         </a>
-        <span className="app-footer__sep" aria-hidden>
-          ·
-        </span>
-        <button
-          type="button"
-          className="app-footer__link app-footer__link--button"
-          onClick={openOnboarding}
-        >
-          Tutorial
-        </button>
       </nav>
       <p className="app-footer__note">ArcadeX · Web3 Game Hub</p>
     </footer>
